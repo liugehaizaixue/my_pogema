@@ -422,7 +422,9 @@ class AnimationMonitor(Wrapper):
             if e2 < dx:
                 err += dx
                 y0 += sy
-        
+
+        points.pop() # 排除代理当前位置这个点
+
         for x,y in points:
             if gh.obstacles[x][y] != free and (x1, y1) != (x, y):
                 return False
@@ -515,7 +517,10 @@ class AnimationMonitor(Wrapper):
                 if egocentric_idx is not None:
                     ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
                     if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        opacity.append('1.0')
+                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                            opacity.append('1.0')
+                        else:
+                            opacity.append(str(cfg.shaded_opacity))
                     else:
                         opacity.append(str(cfg.shaded_opacity))
 
