@@ -472,7 +472,17 @@ class AnimationMonitor(Wrapper):
         cy = cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
 
         dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
-        d = self.create_sector_data(cx, -cy,dr - cfg.r,45,135) #此处cy是负
+
+        visual_angle_dict ={
+            "UP": (225,315),
+            "DOWN":(45,135),
+            "LEFT":(135,225),
+            "RIGHT":(-45,45)
+        }
+        direction = gh.history[ego_idx][0].get_direction()
+        visual_angle = visual_angle_dict[direction]
+
+        d = self.create_sector_data(cx, -cy,dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是负
         result = Sector(d=d, 
                         stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
                         fill='none',
@@ -529,12 +539,21 @@ class AnimationMonitor(Wrapper):
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         d_path = []
+        visual_angle_dict ={
+            "UP": (225,315),
+            "DOWN":(45,135),
+            "LEFT":(135,225),
+            "RIGHT":(-45,45)
+        }
         for state in gh.history[agent_idx]:
             x, y = state.get_xy()
             dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
             cx = cfg.draw_start + y * cfg.scale_size
             cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
-            d = self.create_sector_data(cx, cy, dr - cfg.r, 45, 135) #此处cy是正
+
+            direction = state.get_direction()
+            visual_angle = visual_angle_dict[direction]
+            d = self.create_sector_data(cx, cy, dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是正
             d_path.append(d)
 
         visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
