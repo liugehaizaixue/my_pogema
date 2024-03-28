@@ -506,14 +506,14 @@ class AnimationMonitor(Wrapper):
             x_path = []
             y_path = []
             opacity = []
-            for agent_state in gh.history[agent_idx]:
+            for t_step , agent_state in enumerate(gh.history[agent_idx]):
                 x, y = agent_state.get_xy()
 
                 x_path.append(str(cfg.draw_start + y * cfg.scale_size))
                 y_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
 
                 if egocentric_idx is not None:
-                    ego_x, ego_y = agent_state.get_xy()
+                    ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
                     if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
                         opacity.append('1.0')
                     else:
