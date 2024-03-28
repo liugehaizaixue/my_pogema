@@ -602,11 +602,23 @@ class AnimationMonitor(Wrapper):
             opacity = []
             for t_step , agent_state in enumerate(gh.history[agent_direction_idx]):
                 x, y = agent_state.get_xy()
-                # [TODO] 判断角度
+                # 判断角度
+                direction_to_offset = {
+                    "UP": (0, -cfg.r),
+                    "DOWN": (0, cfg.r),
+                    "LEFT": (-cfg.r, 0),
+                    "RIGHT": (cfg.r, 0)
+                }
+
+                direction = agent_state.get_direction()
+                offset = direction_to_offset[direction]
+
+
                 x1_path.append(str(cfg.draw_start + y * cfg.scale_size))
                 y1_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
-                x2_path.append(str(cfg.draw_start + y * cfg.scale_size))
-                y2_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size + cfg.r))  # 此处+ cfg.r 方向向下
+                x2_path.append(str(cfg.draw_start + y * cfg.scale_size + offset[0]))
+                y2_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size + offset[1]))  # 此处+ cfg.r 方向向下 
+
                 if egocentric_idx is not None:
                     ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
                     if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
@@ -839,6 +851,7 @@ class AnimationMonitor(Wrapper):
 
         agents_direction = []
         initial_positions = [agent_states[0].get_xy() for agent_states in gh.history]
+        initial_directions = [agent_states[0].get_direction() for agent_states in gh.history]
         for idx, (x, y) in enumerate(initial_positions):
 
             if not any([agent_state.is_active() for agent_state in gh.history[idx]]):
@@ -846,8 +859,17 @@ class AnimationMonitor(Wrapper):
             cx=cfg.draw_start + y * cfg.scale_size
             cy=cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
             r=cfg.r
-            # [TODO] 判断角度
-            agent_direction = Line(x1=cx , y1=cy, x2=cx, y2=cy -r , stroke="black" ) # 此处 -r 方向向下
+            # 判断角度
+            direction_to_offset = {
+                "UP": (0, r),
+                "DOWN": (0, -r),
+                "LEFT": (-r, 0),
+                "RIGHT": (r, 0)
+            }
+
+            direction = initial_directions[idx]
+            offset = direction_to_offset[direction]
+            agent_direction = Line(x1=cx , y1=cy, x2=cx+ offset[0], y2=cy+ offset[1] , stroke="black" ) # 此处 -r 方向向下
             agents_direction.append(agent_direction)
 
         return agents_direction

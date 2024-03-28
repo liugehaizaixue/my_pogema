@@ -42,7 +42,7 @@ class Grid:
                                   Warning, stacklevel=2)
                 self.obstacles[f_x, f_y] = grid_config.FREE
         else:
-            self.starts_xy, self.finishes_xy = generate_positions_and_targets_fast(self.obstacles, self.config)
+            self.starts_xy, self.finishes_xy, self.starts_direction, self.finishes_direction = generate_positions_and_targets_fast(self.obstacles, self.config)
 
         if len(self.starts_xy) != len(self.finishes_xy):
             for attempt in range(num_retries):
@@ -51,7 +51,7 @@ class Grid:
                     break
                 if self.config.map is None:
                     self.obstacles = generate_obstacles(self.config)
-                self.starts_xy, self.finishes_xy = generate_positions_and_targets_fast(self.obstacles, self.config)
+                self.starts_xy, self.finishes_xy, self.starts_direction, self.finishes_direction = generate_positions_and_targets_fast(self.obstacles, self.config)
 
         if not self.starts_xy or not self.finishes_xy or len(self.starts_xy) != len(self.finishes_xy):
             raise OverflowError(
@@ -65,6 +65,7 @@ class Grid:
             filled_positions[x, y] = 1
 
         self.positions = filled_positions
+        self.positions_direction = self.starts_direction
         self.positions_xy = self.starts_xy
         self._initial_xy = deepcopy(self.starts_xy)
         self.is_active = {agent_id: True for agent_id in range(self.config.num_agents)}
@@ -181,7 +182,7 @@ class Grid:
         x, y = self.positions_xy[agent_id]
         r = self.config.obs_radius
         return self.positions[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
-
+    
     def get_target(self, agent_id):
 
         x, y = self.positions_xy[agent_id]

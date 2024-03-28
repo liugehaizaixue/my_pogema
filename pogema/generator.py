@@ -1,6 +1,6 @@
 import time
 from collections import defaultdict
-
+import random
 import numpy as np
 
 from pogema import GridConfig
@@ -72,7 +72,7 @@ def placing_fast(order, components, grid, start_id, num_agents):
     return positions_xy, finishes_xy
 
 
-def placing(order, components, grid, start_id, num_agents):
+def placing(order, components, grid, start_id, num_agents, grid_config ):
     requests = [[] for _ in range(len(components))]
 
     done_requests = 0
@@ -101,7 +101,11 @@ def placing(order, components, grid, start_id, num_agents):
             requests[id_].append(len(positions_xy))
             positions_xy.append((x, y))
 
-    return positions_xy, finishes_xy
+    n = len(positions_xy)
+    positions_direction = [random.choice(grid_config.DIRECTIONS) for _ in range(n)]
+    fininshes_direction = [random.choice(grid_config.DIRECTIONS) for _ in range(n)]
+
+    return positions_xy, finishes_xy, positions_direction, fininshes_direction
 
 
 def generate_positions_and_targets_fast(obstacles, grid_config):
@@ -114,8 +118,8 @@ def generate_positions_and_targets_fast(obstacles, grid_config):
     height, width = obstacles.shape
     order = [(x, y) for x in range(height) for y in range(width) if grid[x, y] >= start_id]
     np.random.default_rng(c.seed).shuffle(order)
-
-    return placing(order=order, components=components, grid=grid, start_id=start_id, num_agents=c.num_agents)
+    
+    return placing(order=order, components=components, grid=grid, start_id=start_id, num_agents=c.num_agents, grid_config=c)
 
 
 def generate_new_target(rnd_generator, point_to_component, component_to_points, position):

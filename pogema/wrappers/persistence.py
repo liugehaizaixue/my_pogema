@@ -1,17 +1,21 @@
 from gymnasium import Wrapper
-
+from typing_extensions import Literal
 
 class AgentState:
-    def __init__(self, x, y, tx, ty, step, active):
+    def __init__(self, x, y, tx, ty, step, active, direction="UP"):
         self.x = x
         self.y = y
         self.tx = tx
         self.ty = ty
         self.step = step
         self.active = active
+        self.direction : Literal['UP', 'DOWN', 'LEFT', 'RIGHT'] = direction
 
     def get_xy(self):
         return self.x, self.y
+    
+    def get_direction(self):
+        return self.direction
 
     def get_target_xy(self):
         return self.tx, self.ty
@@ -67,7 +71,8 @@ class PersistentWrapper(Wrapper):
         x, y = grid.positions_xy[agent_idx]
         tx, ty = grid.finishes_xy[agent_idx]
         active = grid.is_active[agent_idx]
-        return AgentState(x, y, tx, ty, self._step, active)
+        direction = grid.positions_direction[agent_idx]
+        return AgentState(x, y, tx, ty, self._step, active, direction)
 
     def reset(self, **kwargs):
         result = self.env.reset(**kwargs)
