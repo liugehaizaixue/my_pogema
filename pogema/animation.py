@@ -2,7 +2,7 @@ import os
 import typing
 from itertools import cycle
 from gymnasium import logger, Wrapper
-
+import math
 from pydantic import BaseModel
 
 from pogema import GridConfig, pogema_v0
@@ -89,6 +89,16 @@ class SvgObject:
             return f"<{self.tag} {self.render_attributes(self.attributes)}> {animations} </{self.tag}>"
         return f"<{self.tag} {self.render_attributes(self.attributes)} />"
 
+
+
+class Sector(SvgObject):
+    """
+    Sector class for the SVG.
+    """
+    tag = 'path'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 class Rectangle(SvgObject):
     """
@@ -309,7 +319,8 @@ class AnimationMonitor(Wrapper):
             field_of_view = self.create_field_of_view(grid_holder=gh, animation_config=anim_cfg)
             if not anim_cfg.static:
                 self.animate_obstacles(obstacles=obstacles, grid_holder=gh, animation_config=anim_cfg)
-                self.animate_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
+                # self.animate_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
+                self.animate_sector_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
             drawing.add_element(field_of_view)
 
         return drawing
@@ -459,14 +470,58 @@ class AnimationMonitor(Wrapper):
         cy = cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
 
         dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
-        result = Rectangle(x=cx - dr + cfg.r, y=cy - dr + cfg.r,
-                           width=2 * dr - 2 * cfg.r, height=2 * dr - 2 * cfg.r,
-                           stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
-                           fill='none',
-                           rx=cfg.rx, stroke_dasharray=cfg.stroke_dasharray,
-                           )
+        # result = Rectangle(x=cx - dr + cfg.r, y=cy - dr + cfg.r,
+        #                    width=2 * dr - 2 * cfg.r, height=2 * dr - 2 * cfg.r,
+        #                    stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
+        #                    fill='none',
+        #                    rx=cfg.rx, stroke_dasharray=cfg.stroke_dasharray,
+        #                    )
 
+        d = self.create_sector_field_of_view(cx, -cy,dr - cfg.r,45,135) #此处cy是负
+        result = Sector(d=d, 
+                        stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
+                        fill='none',
+                        stroke_dasharray=cfg.stroke_dasharray,)
         return result
+
+    def create_sector_field_of_view(self, cx,cy,r,start_angle,end_angle):
+        start_x = cx + r * math.cos(math.radians(start_angle))
+        start_y = cy + r * math.sin(math.radians(start_angle))
+        end_x = cx + r * math.cos(math.radians(end_angle))
+        end_y = cy + r * math.sin(math.radians(end_angle))
+
+        large_arc_flag = "0" if end_angle - start_angle <= 180 else "1"
+        sweep_flag = "1"  # Always draw the arc in positive angle direction
+
+        path_data = f"M {cx},{cy} " \
+                    f"L {start_x},{start_y} " \
+                    f"A {r},{r} 0 {large_arc_flag} {sweep_flag} {end_x},{end_y} " \
+                    f"Z"
+        return path_data
+
+    def animate_sector_field_of_view(self, view, agent_idx, grid_holder,start_angle=45,end_angle=135):
+        """
+        Animates the field of view.
+        :param view:
+        :param agent_idx:
+        :param grid_holder:
+        :return:
+        """
+        gh: GridHolder = grid_holder
+        cfg = self.svg_settings
+        d_path = []
+        for state in gh.history[agent_idx]:
+            x, y = state.get_xy()
+            dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
+            cx = cfg.draw_start + y * cfg.scale_size
+            cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
+            d = self.create_sector_field_of_view(cx, cy, dr - cfg.r, 45, 135) #此处cy是正
+            d_path.append(d)
+
+        visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
+
+        view.add_animation(self.compressed_anim('d', d_path, cfg.time_scale))
+        view.add_animation(self.compressed_anim('visibility', visibility, cfg.time_scale))
 
     def animate_field_of_view(self, view, agent_idx, grid_holder):
         """
