@@ -395,16 +395,16 @@ class AnimationMonitor(Wrapper):
         err = dx - dy
 
         _type = ""
-        if dx == 0 or dy == 0:
+        if x1 - x0 == 0 or y1 - y0 == 0:
             _type = "line"
         else:
-            if dx > 0 and dy > 0:
+            if x1 - x0 > 0 and y1 - y0 > 0:
                 _type = "up-right"
-            elif dx > 0 and dy < 0:
+            elif x1 - x0 > 0 and y1 - y0 < 0:
                 _type = "down-right"
-            elif dx < 0 and dy > 0:
+            elif x1 - x0 < 0 and y1 - y0 > 0:
                 _type = "up-left"
-            elif dx < 0 and dy < 0 :
+            elif x1 - x0 < 0 and y1 - y0 < 0 :
                 _type = "down-left"
             else:
                 raise ValueError("unknown direction")
@@ -424,7 +424,7 @@ class AnimationMonitor(Wrapper):
                 y0 += sy
         
         for x,y in points:
-            if gh.obstacles[x][y] != free and (x0, y0) != (x, y):
+            if gh.obstacles[x][y] != free and (x1, y1) != (x, y):
                 return False
             else:
                 if _type == "up-right":
