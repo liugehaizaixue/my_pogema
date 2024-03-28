@@ -304,15 +304,16 @@ class AnimationMonitor(Wrapper):
         if anim_cfg.show_agents:
             agents = self.create_agents(gh, anim_cfg)
             targets = self.create_targets(gh, anim_cfg)
-
+            agents_direction = self.create_agents_direction(gh, anim_cfg)
             if not anim_cfg.static:
                 self.animate_agents(agents, anim_cfg.egocentric_idx, gh)
+                self.animate_agents_direction(agents_direction, anim_cfg.egocentric_idx, gh)
                 self.animate_targets(targets, gh, anim_cfg)
         if anim_cfg.show_lines:
             grid_lines = self.create_grid_lines(gh, anim_cfg, render_width, render_height)
             for line in grid_lines:
                 drawing.add_element(line)
-        for obj in [*obstacles, *agents, *targets, ]:
+        for obj in [*obstacles, *agents, *targets, *agents_direction,]:
             drawing.add_element(obj)
 
         if anim_cfg.egocentric_idx is not None:
@@ -587,6 +588,45 @@ class AnimationMonitor(Wrapper):
             if opacity:
                 agent.add_animation(self.compressed_anim('opacity', opacity, cfg.time_scale))
 
+    def animate_agents_direction(self, agents_direction, egocentric_idx, grid_holder):
+        """
+        Animates the agents_direction.
+        """
+        gh: GridHolder = grid_holder
+        cfg = self.svg_settings
+        for agent_direction_idx, agent_direction in enumerate(agents_direction):
+            x1_path = []
+            y1_path = []
+            x2_path = []
+            y2_path = []
+            opacity = []
+            for t_step , agent_state in enumerate(gh.history[agent_direction_idx]):
+                x, y = agent_state.get_xy()
+                # [TODO] 判断角度
+                x1_path.append(str(cfg.draw_start + y * cfg.scale_size))
+                y1_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
+                x2_path.append(str(cfg.draw_start + y * cfg.scale_size))
+                y2_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size + cfg.r))  # 此处+ cfg.r 方向向下
+                if egocentric_idx is not None:
+                    ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
+                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                            opacity.append('1.0')
+                        else:
+                            opacity.append(str(cfg.shaded_opacity))
+                    else:
+                        opacity.append(str(cfg.shaded_opacity))
+
+            visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_direction_idx]]
+
+            agent_direction.add_animation(self.compressed_anim('x1', x1_path, cfg.time_scale))
+            agent_direction.add_animation(self.compressed_anim('y1', y1_path, cfg.time_scale))
+            agent_direction.add_animation(self.compressed_anim('x2', x2_path, cfg.time_scale))
+            agent_direction.add_animation(self.compressed_anim('y2', y2_path, cfg.time_scale))
+            agent_direction.add_animation(self.compressed_anim('visibility', visibility, cfg.time_scale))
+            if opacity:
+                agent_direction.add_animation(self.compressed_anim('opacity', opacity, cfg.time_scale))
+
     @classmethod
     def compressed_anim(cls, attr_name, tokens, time_scale, rep_cnt='indefinite'):
         """
@@ -786,6 +826,31 @@ class AnimationMonitor(Wrapper):
             agents.append(agent)
 
         return agents
+
+    def create_agents_direction(self, grid_holder, animation_config):
+        """
+        Creates the agents.
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
+        gh: GridHolder = grid_holder
+        cfg = self.svg_settings
+
+        agents_direction = []
+        initial_positions = [agent_states[0].get_xy() for agent_states in gh.history]
+        for idx, (x, y) in enumerate(initial_positions):
+
+            if not any([agent_state.is_active() for agent_state in gh.history[idx]]):
+                continue
+            cx=cfg.draw_start + y * cfg.scale_size
+            cy=cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
+            r=cfg.r
+            # [TODO] 判断角度
+            agent_direction = Line(x1=cx , y1=cy, x2=cx, y2=cy -r , stroke="black" ) # 此处 -r 方向向下
+            agents_direction.append(agent_direction)
+
+        return agents_direction
 
     def create_targets(self, grid_holder, animation_config):
         """

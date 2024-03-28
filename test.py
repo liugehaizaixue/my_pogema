@@ -77,7 +77,7 @@ grid_config = GridConfig(map=grid, num_agents=18,observation_type="POMAPF",max_e
 env = pogema_v0(grid_config=grid_config)
 
 anim_dir = str(pathlib.Path('renders') / "test")
-env = AnimationMonitor(env, AnimationConfig(directory=anim_dir,egocentric_idx=0))
+env = AnimationMonitor(env, AnimationConfig(directory=anim_dir,egocentric_idx=0, static=False))
 obs, info = env.reset()
 
 while True:
