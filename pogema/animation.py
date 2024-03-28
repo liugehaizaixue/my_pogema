@@ -380,6 +380,67 @@ class AnimationMonitor(Wrapper):
         :return:
         """
         return x2 - r <= x1 <= x2 + r and y2 - r <= y1 <= y2 + r
+    
+    @staticmethod
+    def check_in_real_radius(x0, y0, x1, y1, grid_holder, free) -> bool:
+        """ 
+        判断某个点是否可见，障碍物后不可见
+        """
+        gh: GridHolder = grid_holder
+
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+
+        _type = ""
+        if dx == 0 or dy == 0:
+            _type = "line"
+        else:
+            if dx > 0 and dy > 0:
+                _type = "up-right"
+            elif dx > 0 and dy < 0:
+                _type = "down-right"
+            elif dx < 0 and dy > 0:
+                _type = "up-left"
+            elif dx < 0 and dy < 0 :
+                _type = "down-left"
+            else:
+                raise ValueError("unknown direction")
+            
+        points = []
+
+        while True:
+            points.append((x0, y0))
+            if x0 == x1 and y0 == y1:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x0 += sx
+            if e2 < dx:
+                err += dx
+                y0 += sy
+        
+        for x,y in points:
+            if gh.obstacles[x][y] != free and (x0, y0) != (x, y):
+                return False
+            else:
+                if _type == "up-right":
+                    if gh.obstacles[x-1][y] != free and gh.obstacles[x][y-1] != free:
+                        return False
+                elif _type == "down-right":
+                    if gh.obstacles[x-1][y] != free and gh.obstacles[x][y+1] != free:
+                        return False
+                elif _type == "up-left":
+                    if gh.obstacles[x+1][y] != free and gh.obstacles[x][y-1] != free:
+                        return False
+                elif _type == "down-left":
+                    if gh.obstacles[x+1][y] != free and gh.obstacles[x][y+1] != free:
+                        return False
+        return True
+
 
     def create_field_of_view(self, grid_holder, animation_config):
         """
@@ -619,7 +680,8 @@ class AnimationMonitor(Wrapper):
                 for step_idx, agent_state in enumerate(gh.history[animation_config.egocentric_idx]):
                     ego_x, ego_y = agent_state.get_xy()
                     if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        seen.add((x, y))
+                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                            seen.add((x, y))
                     if (x, y) in seen:
                         opacity.append(str(1.0))
                     else:
