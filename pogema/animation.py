@@ -317,7 +317,8 @@ class AnimationMonitor(Wrapper):
             drawing.add_element(obj)
 
         if anim_cfg.egocentric_idx is not None:
-            field_of_view = self.create_field_of_view(grid_holder=gh, animation_config=anim_cfg)
+            # field_of_view = self.create_field_of_view(grid_holder=gh, animation_config=anim_cfg)
+            field_of_view = self.create_sector_field_of_view(grid_holder=gh, animation_config=anim_cfg)
             if not anim_cfg.static:
                 self.animate_obstacles(obstacles=obstacles, grid_holder=gh, animation_config=anim_cfg)
                 # self.animate_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
@@ -456,6 +457,28 @@ class AnimationMonitor(Wrapper):
         return True
 
 
+    def create_sector_field_of_view(self, grid_holder, animation_config):
+        """
+        Creates the sector field of view for the egocentric agent.
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
+        cfg = self.svg_settings
+        gh: GridHolder = grid_holder
+        ego_idx = animation_config.egocentric_idx
+        x, y = gh.history[ego_idx][0].get_xy()
+        cx = cfg.draw_start + y * cfg.scale_size
+        cy = cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
+
+        dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
+        d = self.create_sector_data(cx, -cy,dr - cfg.r,45,135) #此处cy是负
+        result = Sector(d=d, 
+                        stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
+                        fill='none',
+                        stroke_dasharray=cfg.stroke_dasharray,)
+        return result
+
     def create_field_of_view(self, grid_holder, animation_config):
         """
         Creates the field of view for the egocentric agent.
@@ -471,21 +494,16 @@ class AnimationMonitor(Wrapper):
         cy = cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
 
         dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
-        # result = Rectangle(x=cx - dr + cfg.r, y=cy - dr + cfg.r,
-        #                    width=2 * dr - 2 * cfg.r, height=2 * dr - 2 * cfg.r,
-        #                    stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
-        #                    fill='none',
-        #                    rx=cfg.rx, stroke_dasharray=cfg.stroke_dasharray,
-        #                    )
+        result = Rectangle(x=cx - dr + cfg.r, y=cy - dr + cfg.r,
+                           width=2 * dr - 2 * cfg.r, height=2 * dr - 2 * cfg.r,
+                           stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
+                           fill='none',
+                           rx=cfg.rx, stroke_dasharray=cfg.stroke_dasharray,
+                           )
 
-        d = self.create_sector_field_of_view(cx, -cy,dr - cfg.r,45,135) #此处cy是负
-        result = Sector(d=d, 
-                        stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
-                        fill='none',
-                        stroke_dasharray=cfg.stroke_dasharray,)
         return result
 
-    def create_sector_field_of_view(self, cx,cy,r,start_angle,end_angle):
+    def create_sector_data(self, cx,cy,r,start_angle,end_angle):
         start_x = cx + r * math.cos(math.radians(start_angle))
         start_y = cy + r * math.sin(math.radians(start_angle))
         end_x = cx + r * math.cos(math.radians(end_angle))
@@ -516,7 +534,7 @@ class AnimationMonitor(Wrapper):
             dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
             cx = cfg.draw_start + y * cfg.scale_size
             cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
-            d = self.create_sector_field_of_view(cx, cy, dr - cfg.r, 45, 135) #此处cy是正
+            d = self.create_sector_data(cx, cy, dr - cfg.r, 45, 135) #此处cy是正
             d_path.append(d)
 
         visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
