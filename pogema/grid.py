@@ -250,14 +250,14 @@ class Grid:
         elif action == "WAIT":
             pass
         else: # "FORWARD"
-            pass
-        # if self.obstacles[x + dx, y + dy] == self.config.FREE:
-        #     if self.positions[x + dx, y + dy] == self.config.FREE:
-        #         self.positions[x, y] = self.config.FREE
-        #         x += dx
-        #         y += dy
-        #         self.positions[x, y] = self.config.OBSTACLE
-        # self.positions_xy[agent_id] = (x, y)
+            dx, dy = direction  # 当前它的方向就是它的前进步长
+            if self.obstacles[x + dx, y + dy] == self.config.FREE:
+                if self.positions[x + dx, y + dy] == self.config.FREE:
+                    self.positions[x, y] = self.config.FREE
+                    x += dx
+                    y += dy
+                    self.positions[x, y] = self.config.OBSTACLE
+            self.positions_xy[agent_id] = (x, y)
 
     def on_goal(self, agent_id):
         return self.positions_xy[agent_id] == self.finishes_xy[agent_id]

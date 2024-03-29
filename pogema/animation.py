@@ -475,13 +475,13 @@ class AnimationMonitor(Wrapper):
 
 
         direction = gh.history[ego_idx][0].get_direction()
-        if direction == (0,1): #"UP"
+        if direction == [0,1]: #"UP"
             visual_angle = (225,315)
-        elif direction == (0,-1): #"DOWN"
+        elif direction == [0,-1]: #"DOWN"
             visual_angle = (45,135)
-        elif direction == (-1,0): #"LEFT"
+        elif direction == [-1,0]: #"LEFT"
             visual_angle = (135,225)
-        else:                       #"RIGHT"
+        else:                     #"RIGHT"
             visual_angle = (-45,45)
 
         d = self.create_sector_data(cx, -cy,dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是负
@@ -549,13 +549,13 @@ class AnimationMonitor(Wrapper):
             cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
 
             direction = state.get_direction()
-            if direction == (0,1): #"UP"
+            if direction == [0,1]: #"UP"
                 visual_angle = (225,315)
-            elif direction == (0,-1): #"DOWN"
+            elif direction == [0,-1]: #"DOWN"
                 visual_angle = (45,135)
-            elif direction == (-1,0): #"LEFT"
+            elif direction == [-1,0]: #"LEFT"
                 visual_angle = (135,225)
-            else:                       #"RIGHT"
+            else:                     #"RIGHT"
                 visual_angle = (-45,45)
             d = self.create_sector_data(cx, cy, dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是正
             d_path.append(d)
@@ -646,9 +646,8 @@ class AnimationMonitor(Wrapper):
                 # 判断角度
 
                 direction = agent_state.get_direction()
-                r = -cfg.r
-                offset = (direction[0]*r , direction[1]*r)
-
+                r = cfg.r
+                offset = (direction[0]*r , -direction[1]*r)
                 x1_path.append(str(cfg.draw_start + y * cfg.scale_size))
                 y1_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
                 x2_path.append(str(cfg.draw_start + y * cfg.scale_size + offset[0]))
