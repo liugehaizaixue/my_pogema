@@ -47,7 +47,8 @@ class PogemaBase(gymnasium.Env):
         self.grid: Grid = None
         self.grid_config = grid_config
 
-        self.action_space: gymnasium.spaces.Discrete = gymnasium.spaces.Discrete(len(self.grid_config.MOVES))
+        # self.action_space: gymnasium.spaces.Discrete = gymnasium.spaces.Discrete(len(self.grid_config.MOVES))
+        self.action_space: gymnasium.spaces.Discrete = gymnasium.spaces.Discrete(len(self.grid_config.NEW_MOVES))
         self._multi_action_sampler = ActionsSampler(self.action_space.n, seed=self.grid_config.seed)
 
     def _get_agents_obs(self, agent_id=0):

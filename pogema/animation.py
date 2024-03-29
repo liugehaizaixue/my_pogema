@@ -473,14 +473,16 @@ class AnimationMonitor(Wrapper):
 
         dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
 
-        visual_angle_dict ={
-            "UP": (225,315),
-            "DOWN":(45,135),
-            "LEFT":(135,225),
-            "RIGHT":(-45,45)
-        }
+
         direction = gh.history[ego_idx][0].get_direction()
-        visual_angle = visual_angle_dict[direction]
+        if direction == (0,1): #"UP"
+            visual_angle = (225,315)
+        elif direction == (0,-1): #"DOWN"
+            visual_angle = (45,135)
+        elif direction == (-1,0): #"LEFT"
+            visual_angle = (135,225)
+        else:                       #"RIGHT"
+            visual_angle = (-45,45)
 
         d = self.create_sector_data(cx, -cy,dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是负
         result = Sector(d=d, 
@@ -539,12 +541,7 @@ class AnimationMonitor(Wrapper):
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         d_path = []
-        visual_angle_dict ={
-            "UP": (225,315),
-            "DOWN":(45,135),
-            "LEFT":(135,225),
-            "RIGHT":(-45,45)
-        }
+
         for state in gh.history[agent_idx]:
             x, y = state.get_xy()
             dr = (self.grid_config.obs_radius + 1) * cfg.scale_size - cfg.stroke_width * 2
@@ -552,7 +549,14 @@ class AnimationMonitor(Wrapper):
             cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
 
             direction = state.get_direction()
-            visual_angle = visual_angle_dict[direction]
+            if direction == (0,1): #"UP"
+                visual_angle = (225,315)
+            elif direction == (0,-1): #"DOWN"
+                visual_angle = (45,135)
+            elif direction == (-1,0): #"LEFT"
+                visual_angle = (135,225)
+            else:                       #"RIGHT"
+                visual_angle = (-45,45)
             d = self.create_sector_data(cx, cy, dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是正
             d_path.append(d)
 
@@ -640,16 +644,10 @@ class AnimationMonitor(Wrapper):
             for t_step , agent_state in enumerate(gh.history[agent_direction_idx]):
                 x, y = agent_state.get_xy()
                 # 判断角度
-                direction_to_offset = {
-                    "UP": (0, -cfg.r),
-                    "DOWN": (0, cfg.r),
-                    "LEFT": (-cfg.r, 0),
-                    "RIGHT": (cfg.r, 0)
-                }
 
                 direction = agent_state.get_direction()
-                offset = direction_to_offset[direction]
-
+                r = -cfg.r
+                offset = (direction[0]*r , direction[1]*r)
 
                 x1_path.append(str(cfg.draw_start + y * cfg.scale_size))
                 y1_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
@@ -897,15 +895,8 @@ class AnimationMonitor(Wrapper):
             cy=cfg.draw_start + (gh.width - x - 1) * cfg.scale_size
             r=cfg.r
             # 判断角度
-            direction_to_offset = {
-                "UP": (0, r),
-                "DOWN": (0, -r),
-                "LEFT": (-r, 0),
-                "RIGHT": (r, 0)
-            }
-
             direction = initial_directions[idx]
-            offset = direction_to_offset[direction]
+            offset = (direction[0]*r , direction[1]*r)
             agent_direction = Line(x1=cx , y1=cy, x2=cx+ offset[0], y2=cy+ offset[1] , stroke="black" ) # 此处 -r 方向向下
             agents_direction.append(agent_direction)
 

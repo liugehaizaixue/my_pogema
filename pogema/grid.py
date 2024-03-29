@@ -239,6 +239,26 @@ class Grid:
                 self.positions[x, y] = self.config.OBSTACLE
         self.positions_xy[agent_id] = (x, y)
 
+    def new_move(self, agent_id, action):
+        x, y = self.positions_xy[agent_id]
+        direction = self.positions_direction[agent_id]
+        action = self.config.MOVES[action]
+        if action == "TURN_LEFT":
+            direction = (-direction[1], direction[0])
+        elif action == "TURN_RIGHT":
+            direction = (direction[1], -direction[0])
+        elif action == "WAIT":
+            pass
+        else: # "FORWARD"
+            pass
+        # if self.obstacles[x + dx, y + dy] == self.config.FREE:
+        #     if self.positions[x + dx, y + dy] == self.config.FREE:
+        #         self.positions[x, y] = self.config.FREE
+        #         x += dx
+        #         y += dy
+        #         self.positions[x, y] = self.config.OBSTACLE
+        # self.positions_xy[agent_id] = (x, y)
+
     def on_goal(self, agent_id):
         return self.positions_xy[agent_id] == self.finishes_xy[agent_id]
 
