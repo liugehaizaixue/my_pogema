@@ -385,17 +385,79 @@ class AnimationMonitor(Wrapper):
     def check_in_radius(x1, y1, x2, y2, r) -> bool:
         """
         Checks if the point is in the radius.
-        :param x1: coordinate x1
-        :param y1: coordinate y1
-        :param x2: coordinate x2
-        :param y2: coordinate y2
+        :param x1: coordinate x1  目标点
+        :param y1: coordinate y1  目标点
+        :param x2: coordinate x2  原点
+        :param y2: coordinate y2  原点
         :param r: radius
         :return:
         """
         return x2 - r <= x1 <= x2 + r and y2 - r <= y1 <= y2 + r
+       
     
     @staticmethod
-    def check_in_real_radius(x0, y0, x1, y1, grid_holder, free) -> bool:
+    def check_in_new_radius(direction0,x0,y0, x1,y1, r):
+        def check_in_angle_range(direction0,x0,y0, x1,y1):
+            """
+            判断某个点是否位于可视的角度范围 
+            注意 坐标系原点在左上角，且竖着的是x,横着的是y， 即越靠上的点x越小
+            因此先给x0,x1取负号， 再让y=x,x=y进行坐标系转换
+            """
+            x0 = - x0
+            x1 = - x1
+            x0 , y0 = y0, x0
+            x1 , y1 = y1, x1
+            def calculate_angle(x0, y0, x1, y1):
+                # 计算点与基准方向的水平距离和垂直距离
+                delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
+                delta_y = y1 - y0
+                # 使用反三角函数计算角度（以弧度为单位）
+                angle_rad = math.atan2(delta_y, delta_x)
+                # 将弧度转换为度数
+                angle_deg = math.degrees(angle_rad)
+                # 将角度限制在 0 到 360 度之间（可选）
+                angle_deg = angle_deg % 360
+                return angle_deg
+            
+            angle_deg = calculate_angle(x0, y0, x1, y1)
+            direction_mapping = {
+                (45, 135): [0, 1],   # up
+                (135, 215): [-1, 0], # left
+                (215, 305): [0, -1], # down
+                (305, 360): [1, 0],  # right
+                (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
+            }
+            direction1 = []
+            for angle_range, direction in direction_mapping.items():
+                if angle_range[0] <= angle_deg <= angle_range[1]:
+                    direction1 = direction
+                    break
+
+            if direction1 == direction0:
+                return True
+            else:
+                return False
+            
+        def check_in_sector_radius(x0, y0, x1, y1, r):
+            """
+            Checks if the point is in the radius. 用直线距离来判断
+            :param x1: coordinate x0  原点
+            :param y1: coordinate y0  原点
+            :param x2: coordinate x1  目标点
+            :param y2: coordinate y1  目标点
+            :param r: radius
+            :return:
+            """
+            distance = math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
+            return distance <= r
+        
+        if x0 == x1 and y0 == y1:
+            return True
+
+        return check_in_sector_radius(x0, y0, x1, y1, r) and check_in_angle_range(direction0,x0,y0, x1,y1)
+
+    @staticmethod
+    def check_is_before_obstacles(x0, y0, x1, y1, grid_holder, free) -> bool:
         """ 
         判断某个点是否可见，障碍物后不可见
         """
@@ -612,9 +674,12 @@ class AnimationMonitor(Wrapper):
                 y_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size))
 
                 if egocentric_idx is not None:
-                    ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
-                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                    ego_agent_state = gh.history[egocentric_idx][t_step]
+                    ego_x, ego_y = ego_agent_state.get_xy()
+                    ego_direction = ego_agent_state.get_direction()
+                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
+                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
                             opacity.append('1.0')
                         else:
                             opacity.append(str(cfg.shaded_opacity))
@@ -654,9 +719,12 @@ class AnimationMonitor(Wrapper):
                 y2_path.append(str(-cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size + offset[1]))  # 此处+ cfg.r 方向向下 
 
                 if egocentric_idx is not None:
-                    ego_x, ego_y = gh.history[egocentric_idx][t_step].get_xy()
-                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                    ego_agent_state = gh.history[egocentric_idx][t_step]
+                    ego_x, ego_y = ego_agent_state.get_xy()
+                    ego_direction = ego_agent_state.get_direction()
+                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
+                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
                             opacity.append('1.0')
                         else:
                             opacity.append(str(cfg.shaded_opacity))
@@ -796,8 +864,11 @@ class AnimationMonitor(Wrapper):
 
                     if animation_config.egocentric_idx is not None and cfg.egocentric_shaded:
                         initial_positions = [agent_states[0].get_xy() for agent_states in gh.history]
+                        initial_directions = [agent_states[0].get_direction() for agent_states in gh.history]
                         ego_x, ego_y = initial_positions[animation_config.egocentric_idx]
-                        if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                        ego_direction = initial_directions[animation_config.egocentric_idx]
+                        # if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                        if not self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
                             obs_settings.update(opacity=cfg.shaded_opacity)
 
                     result.append(Rectangle(**obs_settings))
@@ -825,8 +896,10 @@ class AnimationMonitor(Wrapper):
                 seen = set()
                 for step_idx, agent_state in enumerate(gh.history[animation_config.egocentric_idx]):
                     ego_x, ego_y = agent_state.get_xy()
-                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        if self.check_in_real_radius(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
+                    ego_direction = agent_state.get_direction()
+                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
+                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
                             seen.add((x, y))
                     if (x, y) in seen:
                         opacity.append(str(1.0))
@@ -850,6 +923,7 @@ class AnimationMonitor(Wrapper):
 
         agents = []
         initial_positions = [agent_states[0].get_xy() for agent_states in gh.history]
+        initial_directions = [agent_states[0].get_direction() for agent_states in gh.history]
         for idx, (x, y) in enumerate(initial_positions):
 
             if not any([agent_state.is_active() for agent_state in gh.history[idx]]):
@@ -862,7 +936,9 @@ class AnimationMonitor(Wrapper):
             ego_idx = animation_config.egocentric_idx
             if ego_idx is not None:
                 ego_x, ego_y = initial_positions[ego_idx]
-                if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius) and cfg.egocentric_shaded:
+                ego_direction = initial_directions[ego_idx]
+                # if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius) and cfg.egocentric_shaded:
+                if not self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius) and cfg.egocentric_shaded:
                     circle_settings.update(opacity=cfg.shaded_opacity)
                 if ego_idx == idx:
                     circle_settings.update(fill=self.svg_settings.ego_color)
