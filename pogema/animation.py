@@ -436,7 +436,7 @@ class AnimationMonitor(Wrapper):
                 err += dx
                 y0 += sy
 
-        points.pop() # 排除代理当前位置这个点
+        points.pop(0) # 排除代理当前位置这个点
 
         for x,y in points:
             if gh.obstacles[x][y] != free and (x1, y1) != (x, y):
