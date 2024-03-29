@@ -42,8 +42,8 @@ class PersistentWrapper(Wrapper):
         self._step += 1
         for agent_idx in range(self.get_num_agents()):
             agent_state = self._get_agent_state(self.grid, agent_idx)
-            if agent_state != self._agent_states[agent_idx][-1]:
-                self._agent_states[agent_idx].append(agent_state)
+            # if agent_state != self._agent_states[agent_idx][-1]:  # 此处将所有状态加入，否则不能正常显示转弯
+            self._agent_states[agent_idx].append(agent_state)
 
         return result
 

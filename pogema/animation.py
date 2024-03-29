@@ -17,7 +17,7 @@ class AnimationSettings(BaseModel):
     r: int = 35
     stroke_width: int = 10
     scale_size: int = 100
-    time_scale: float = 0.28
+    time_scale: float = 0.5 # 0.28
     draw_start: int = 100
     rx: int = 15
 

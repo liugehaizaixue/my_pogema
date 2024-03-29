@@ -226,8 +226,8 @@ class Pogema(PogemaBase):
         if self.grid.config.collision_system == 'priority':
             for agent_idx in range(self.grid_config.num_agents):
                 if self.grid.is_active[agent_idx]:
-                    self.grid.move(agent_idx, actions[agent_idx])
-                    # self.grid.new_move(agent_idx, actions[agent_idx])
+                    # self.grid.move(agent_idx, actions[agent_idx])
+                    self.grid.new_move(agent_idx, actions[agent_idx])
         elif self.grid.config.collision_system == 'block_both':
             used_cells = {}
             agents_xy = self.grid.get_agents_xy()
