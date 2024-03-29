@@ -422,9 +422,9 @@ class AnimationMonitor(Wrapper):
             angle_deg = calculate_angle(x0, y0, x1, y1)
             direction_mapping = {
                 (45, 135): [0, 1],   # up
-                (135, 215): [-1, 0], # left
-                (215, 305): [0, -1], # down
-                (305, 360): [1, 0],  # right
+                (135, 225): [-1, 0], # left
+                (225, 315): [0, -1], # down
+                (315, 360): [1, 0],  # right
                 (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
             }
             direction1 = []
