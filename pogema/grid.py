@@ -2,7 +2,7 @@ from copy import deepcopy
 import warnings
 
 import numpy as np
-
+import math
 from pogema.generator import generate_obstacles, generate_positions_and_targets_fast, \
     get_components
 from .grid_config import GridConfig
@@ -180,6 +180,65 @@ class Grid:
         x, y = self.positions_xy[agent_id]
         r = self.config.obs_radius
         return self.obstacles[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
+
+    @staticmethod
+    def get_sector_range_from_rect(matrix, direction):
+        """ sector范围外的 改为-1 即不可见 """
+        def calculate_angle(x0, y0, x1, y1):
+            # 计算点与基准方向的水平距离和垂直距离
+            delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
+            delta_y = y1 - y0
+            # 使用反三角函数计算角度（以弧度为单位）
+            angle_rad = math.atan2(delta_y, delta_x)
+            # 将弧度转换为度数
+            angle_deg = math.degrees(angle_rad)
+            # 将角度限制在 0 到 360 度之间（可选）
+            angle_deg = angle_deg % 360
+            return angle_deg
+        
+        def check_in_angle_range(angle_deg, direction0):
+            direction_mapping = {
+                (45, 135): [0, 1],   # up
+                (135, 225): [-1, 0], # left
+                (225, 315): [0, -1], # down
+                (315, 360): [1, 0],  # right
+                (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
+            }
+            for angle_range, direction in direction_mapping.items():
+                if angle_range[0] <= angle_deg <= angle_range[1]:
+                    return direction == direction0
+
+        x0 = y0 = ((1+len(matrix)) / 2) -1
+        for i in range(len(matrix)):
+            # 遍历列
+            for j in range(len(matrix[i])):
+                x1 = j
+                y1 = i
+
+                """ 左上角为坐标原点，进行坐标转换 """
+                print(x1,y1)
+                angle_deg = calculate_angle(x0,y0,x1,y1)
+                print(angle_deg)
+                print(direction)
+                if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1):
+                    matrix[i][j] = -1 # 将不可见区域改为-1
+        return matrix
+
+    def new_get_obstacles_for_agent(self, agent_id):
+        x, y = self.positions_xy[agent_id]
+        direction = self.positions_direction[agent_id]
+        r = self.config.obs_radius
+        rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
+        sector_obstacles = self.get_sector_range_from_rect(deepcopy(rect_obstacles), direction)
+        return sector_obstacles.astype(np.float32)
+
+    def new_get_positions(self, agent_id):
+        x, y = self.positions_xy[agent_id]
+        direction = self.positions_direction[agent_id]
+        r = self.config.obs_radius
+        rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
+        sector_positions = self.get_sector_range_from_rect(deepcopy(rect_positions), direction)
+        return sector_positions.astype(np.float32)
 
     def get_positions(self, agent_id):
         x, y = self.positions_xy[agent_id]
