@@ -108,6 +108,7 @@ class Pogema(PogemaBase):
                 agents=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
                 xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
                 target_xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
+                direction = gymnasium.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
             )
         elif self.grid_config.observation_type == 'MAPF':
             self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(
