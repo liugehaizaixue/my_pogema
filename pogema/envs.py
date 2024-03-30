@@ -195,12 +195,15 @@ class Pogema(PogemaBase):
         results = []
         agents_xy_relative = self.grid.get_agents_xy_relative()
         targets_xy_relative = self.grid.get_targets_xy_relative()
+        agents_direction_relative = self.grid.get_agents_direction_relative()
 
         for agent_idx in range(self.grid_config.num_agents):
             result = {'obstacles': self.grid.get_obstacles_for_agent(agent_idx),
                       'agents': self.grid.get_positions(agent_idx),
                       'xy': agents_xy_relative[agent_idx],
-                      'target_xy': targets_xy_relative[agent_idx]}
+                      'target_xy': targets_xy_relative[agent_idx],
+                      'direction': agents_direction_relative[agent_idx]
+                      }
 
             results.append(result)
         return results

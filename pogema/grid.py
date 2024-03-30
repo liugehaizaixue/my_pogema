@@ -133,6 +133,9 @@ class Grid:
             result[idx] = x - dx, y - dy
         return result
 
+    def get_agents_direction_relative(self):
+        return self.positions_direction
+
     def get_agents_xy_relative(self):
         return self.to_relative(self.positions_xy, self._initial_xy)
 
