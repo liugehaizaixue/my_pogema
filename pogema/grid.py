@@ -207,19 +207,16 @@ class Grid:
             for angle_range, direction in direction_mapping.items():
                 if angle_range[0] <= angle_deg <= angle_range[1]:
                     return direction == direction0
-
-        x0 = y0 = ((1+len(matrix)) / 2) -1
-        for i in range(len(matrix)):
+        
+        n = len(matrix)
+        x0 = y0 = ((1+n) / 2) -1
+        for i in range(n):
             # 遍历列
             for j in range(len(matrix[i])):
                 x1 = j
-                y1 = i
-
+                y1 = n - i -1
                 """ 左上角为坐标原点，进行坐标转换 """
-                print(x1,y1)
                 angle_deg = calculate_angle(x0,y0,x1,y1)
-                print(angle_deg)
-                print(direction)
                 if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1):
                     matrix[i][j] = -1 # 将不可见区域改为-1
         return matrix
