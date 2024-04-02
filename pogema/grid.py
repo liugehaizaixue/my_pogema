@@ -182,8 +182,203 @@ class Grid:
         return self.obstacles[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
 
     @staticmethod
-    def get_sector_range_from_rect(matrix, direction):
-        """ sector范围外的 改为-1 即不可见 """
+    def check_is_before_obstacles_or_agent(x0, y0, x1, y1, obs_matrix, visibility_record_matrix) -> bool:
+        """ 
+        判断某个点是否可见，障碍物/agent之后的不可见
+        obs_matrix是两者融合后的障碍物矩阵
+        """
+        n = len(obs_matrix[0])
+        i = n-y1-1 # 行
+        j = x1 # 列
+        if visibility_record_matrix[i][j] == 1:
+            return True
+        elif visibility_record_matrix[i][j] == 0:
+            return False
+
+        _x0 = x0
+        _y0 = y0
+
+        obs_matrix[x0][y0] = 0
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+        
+        points = []
+        while True:
+            points.append((x0, y0))
+            if x0 == x1 and y0 == y1:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x0 += sx
+            if e2 < dx:
+                err += dx
+                y0 += sy
+        points.pop(0) # 排除代理当前位置这个点
+        points.pop() #排除最终目标点
+        def check_for_target_adjacent_point():
+            pass
+
+        def check_for_target_point(x0,y0, x1,y1, obs_matrix,visibility_record_matrix):
+            """ 判断是否有障碍，且需判断是否可见 """
+            """ 如果是line则只需判断，这条路径上是否有障碍 """
+            n = len(obs_matrix[0])
+            i = n-y1-1 # 行
+            j = x1 # 列
+            _type = ""
+            if x1 - x0 == 0 or y1 - y0 == 0: #"line"
+                """ 如果位于一条直线，此时已经检查过这条路径上的可见性，因此该点可见 """
+                pass
+
+            """ 如果位于斜方向 那么需要判断其相邻两个是否可见，且不为障碍 """
+            if x1 - x0 > 0 and y1 - y0 > 0 : # "up-right"
+                """ 相邻两点同时为障碍时，无论他们是否可见，该点都不可见 """
+                if obs_matrix[i][j-1] != 0 and obs_matrix[i+1][j] != 0: #不能 同时为障碍
+                    visibility_record_matrix[i][j] = 0
+                    return False
+                visibility_point0 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1-1 , y1, obs_matrix, visibility_record_matrix)
+                visibility_point1 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1 , y1-1, obs_matrix, visibility_record_matrix)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true，即不返回False即可，最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i][j-1] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i+1][j] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record_matrix[i][j] = 0
+                    return False  
+            elif x1 - x0 > 0 and y1 - y0 < 0: #"down-right"
+                if obs_matrix[i][j-1] != 0 and obs_matrix[i-1][j] != 0:
+                    visibility_record_matrix[i][j] = 0
+                    return False
+                visibility_point0 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1-1 , y1, obs_matrix, visibility_record_matrix)
+                visibility_point1 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1 , y1+1, obs_matrix, visibility_record_matrix)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true，即不返回False即可，最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i][j-1] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i-1][j] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record_matrix[i][j] = 0
+                    return False  
+            elif x1 - x0 < 0 and y1 - y0 > 0: # "up-left"
+                if obs_matrix[i][j+1] != 0 and obs_matrix[i+1][j] != 0:
+                    visibility_record_matrix[i][j] = 0
+                    return False
+                visibility_point0 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1 , y1-1, obs_matrix, visibility_record_matrix)
+                visibility_point1 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1+1 , y1, obs_matrix, visibility_record_matrix)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true，即不返回False即可，最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i+1][j] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i][j+1] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record_matrix[i][j] = 0
+                    return False 
+            elif x1 - x0 < 0 and y1 - y0 < 0 : #"down-left":
+                if obs_matrix[i][j+1] != 0 and obs_matrix[i-1][j] != 0:
+                    visibility_record_matrix[i][j] = 0
+                    return False
+                visibility_point0 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1 , y1+1, obs_matrix, visibility_record_matrix)
+                visibility_point1 = Grid.check_is_before_obstacles_or_agent(x0, y0, x1+1 , y1, obs_matrix, visibility_record_matrix)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true，即不返回False即可，最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i-1][j] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[i][j+1] != 0:
+                        visibility_record_matrix[i][j] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record_matrix[i][j] = 0
+                    return False
+            visibility_record_matrix[i][j] = 1
+            return True
+
+        flag = True
+        for k in range(len(points)):
+            """ 处理起点到终点之间的路径点的可视性 """
+            n = len(obs_matrix[0])
+            x, y = points[k]
+            i = n-y-1 # 行
+            j = x # 列
+            if obs_matrix[i][j] != 0:  #说明 两点间的路径上有障碍
+                flag = False
+                break
+
+            if visibility_record_matrix[i][j] == 0:
+                flag = False
+                break
+            elif visibility_record_matrix[i][j] == 1:
+                continue
+            else:
+                if Grid.check_is_before_obstacles_or_agent(_x0, _y0, x , y, obs_matrix, visibility_record_matrix):
+                    visibility_record_matrix[i][j] = 1
+                    continue
+                else:
+                    visibility_record_matrix[i][j] = 0
+                    flag = False
+                    break
+        
+        if flag == True:
+            if check_for_target_point(_x0, _y0, x1,y1, obs_matrix, visibility_record_matrix):
+                return True
+        return False
+
+
+
+    @staticmethod
+    def get_sector_range_from_rect(matrix0 ,direction):
+        """ 
+        从rect矩阵中裁取sector范围
+        """
         def calculate_angle(x0, y0, x1, y1):
             # 计算点与基准方向的水平距离和垂直距离
             delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
@@ -197,6 +392,7 @@ class Grid:
             return angle_deg
         
         def check_in_angle_range(angle_deg, direction0):
+            """ 判断是否位于可视角度内 """
             direction_mapping = {
                 (45, 135): [0, 1],   # up
                 (135, 225): [-1, 0], # left
@@ -204,37 +400,97 @@ class Grid:
                 (315, 360): [1, 0],  # right
                 (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
             }
+            flag = False
             for angle_range, direction in direction_mapping.items():
                 if angle_range[0] <= angle_deg <= angle_range[1]:
-                    return direction == direction0
-        
-        n = len(matrix)
-        x0 = y0 = ((1+n) / 2) -1
+                    if direction == direction0:
+                        flag = True
+                    else:
+                        continue
+            return flag
+                
+        def check_in_sector_radius(x0, y0, x1, y1, r):
+            """
+            Checks if the point is in the radius. 用直线距离来判断,超出r的不可见
+            :param x1: coordinate x0  原点
+            :param y1: coordinate y0  原点
+            :param x2: coordinate x1  目标点
+            :param y2: coordinate y1  目标点
+            :param r: radius
+            :return:
+            """
+            distance = math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
+            return distance <= r    
+
+
+        n = len(matrix0)
+        x0 = y0 = int(((1+n) / 2) -1)
         for i in range(n):
             # 遍历列
-            for j in range(len(matrix[i])):
+            for j in range(len(matrix0[i])):
                 x1 = j
                 y1 = n - i -1
-                """ 左上角为坐标原点，进行坐标转换 """
+                """ 左上角为坐标原点，进行坐标转换, 转换结果为左下角为0,0 """
                 angle_deg = calculate_angle(x0,y0,x1,y1)
-                if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1):
-                    matrix[i][j] = -1 # 将不可见区域改为-1
-        return matrix
+                if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1) :
+                    matrix0[i][j] = -1 # 将不可见区域改为-1
+                    continue
+                if not check_in_sector_radius(x0,x0,x1,y1, r = x0):
+                    matrix0[i][j] = -1 # 将不可见区域改为-1
+                    continue
+        return matrix0
+    
+    @staticmethod
+    def get_real_views(matrix0 , matrix1, direction):
+        """
+        matrix 代表obstacles与positions两个矩阵
+        matrix0 为最终返回的矩阵
+        matrix1 为另一个矩阵，他们的组合会产生视觉影响
+        不可见区域设为-1
+        sector范围外的:角度范围外，直线距离外，障碍物后
+        """
+        obs_matrix = np.logical_or(matrix0 , matrix1).astype(int) # 通过布尔运算，产生obstacles+position组成的障碍图，根据该图判断 障碍物后的点是否可见
+        obs_matrix_sector = Grid.get_sector_range_from_rect(obs_matrix, direction)
+        matrix0_sector = Grid.get_sector_range_from_rect(matrix0, direction)
+        visibility_record_matrix  = [[-1 if element != -1 else 0 for element in row] for row in obs_matrix_sector]  # 此表仅记录某元素是否可见，-1尚未判断，1确定可见，0不可见
+        n = len(matrix0_sector)
+        x0 = y0 = int(((1+n) / 2) -1)
+        visibility_record_matrix[x0][y0] = 1
+        for i in range(n):
+            # 遍历列
+            for j in range(len(matrix0_sector[i])):
+                x1 = j
+                y1 = n - i -1
+                """ 左上角为坐标原点，进行坐标转换, 转换结果为左下角为0,0 """
+                if visibility_record_matrix[i][j] == 1: # 已知可见
+                    continue
+                elif visibility_record_matrix[i][j] == 0: # 已知不可见
+                    matrix0_sector[i][j] = -1 # 将不可见区域改为-1
+                else: #未知
+                    if not Grid.check_is_before_obstacles_or_agent(x0,y0,x1,y1,obs_matrix_sector, visibility_record_matrix):
+                        matrix0_sector[i][j] = -1 # 将不可见区域改为-1
+                        visibility_record_matrix[i][j] = 0
+                        continue
+                    else:
+                        visibility_record_matrix[i][j] = 1
+        return matrix0_sector
 
     def new_get_obstacles_for_agent(self, agent_id):
         x, y = self.positions_xy[agent_id]
         direction = self.positions_direction[agent_id]
         r = self.config.obs_radius
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
-        sector_obstacles = self.get_sector_range_from_rect(deepcopy(rect_obstacles), direction)
+        rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
+        sector_obstacles = self.get_real_views(deepcopy(rect_obstacles), deepcopy(rect_positions), direction)
         return sector_obstacles.astype(np.float32)
 
     def new_get_positions(self, agent_id):
         x, y = self.positions_xy[agent_id]
         direction = self.positions_direction[agent_id]
         r = self.config.obs_radius
+        rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
-        sector_positions = self.get_sector_range_from_rect(deepcopy(rect_positions), direction)
+        sector_positions = self.get_real_views(deepcopy(rect_positions), deepcopy(rect_obstacles), direction)
         return sector_positions.astype(np.float32)
 
     def get_positions(self, agent_id):
