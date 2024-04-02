@@ -426,17 +426,15 @@ class AnimationMonitor(Wrapper):
                 (225, 315): [0, -1], # down
                 (315, 360): [1, 0],  # right
                 (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
-            }
-            direction1 = []
+            }          
+            flag = False
             for angle_range, direction in direction_mapping.items():
                 if angle_range[0] <= angle_deg <= angle_range[1]:
-                    direction1 = direction
-                    break
-
-            if direction1 == direction0:
-                return True
-            else:
-                return False
+                    if direction == direction0:
+                        flag = True
+                    else:
+                        continue
+            return flag
             
         def check_in_sector_radius(x0, y0, x1, y1, r):
             """
