@@ -41,13 +41,13 @@ setup(
     install_requires=[
         "gymnasium==0.28.1",
         "numpy>=1.19.2,<=1.23.1",
-        "pydantic>=1.8.2,<=1.9.1",
+        "pydantic==1.10.12",
     ],
     extras_require={
 
     },
-    package_dir={'': './'},
-    packages=find_packages(where='./', include='pogema*'),
+    package_dir={'': '.'},
+    packages=find_packages(where='.', include='pogema*'),
     include_package_data=True,
     python_requires='>=3.7',
 )
