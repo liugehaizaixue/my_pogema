@@ -4,7 +4,7 @@ from itertools import cycle
 from gymnasium import logger, Wrapper
 import math
 from pydantic import BaseModel
-
+import numpy as np
 from pogema import GridConfig, pogema_v0
 from pogema.grid import Grid
 from pogema.wrappers.persistence import PersistentWrapper, AgentState
@@ -393,8 +393,26 @@ class AnimationMonitor(Wrapper):
         :return:
         """
         return x2 - r <= x1 <= x2 + r and y2 - r <= y1 <= y2 + r
-       
-    
+
+    @staticmethod
+    def get_positions_by_step(step, gh):
+        """ 获取某个step中所有机器人的位置 """
+        positions  = np.zeros_like(gh.obstacles)
+        for agent in gh.history:
+            if agent[step].active:
+                x = agent[step].x
+                y = agent[step].y
+                if positions[x][y] == 1:
+                    raise ValueError("positions error")
+                else:
+                    positions[x][y] =1  
+        return positions
+
+    @staticmethod
+    def get_obstacles_and_agents_matrix(positions, obstacles):
+        """ 获取obstacles与agents组合形成的obs_matrix """
+        return np.logical_or(positions, obstacles).astype(int)
+
     @staticmethod
     def check_in_new_radius(direction0,x0,y0, x1,y1, r):
         def check_in_angle_range(direction0,x0,y0, x1,y1):
@@ -455,35 +473,30 @@ class AnimationMonitor(Wrapper):
         return check_in_sector_radius(x0, y0, x1, y1, r) and check_in_angle_range(direction0,x0,y0, x1,y1)
 
     @staticmethod
-    def check_is_before_obstacles(x0, y0, x1, y1, grid_holder, free) -> bool:
+    def check_is_before_obstacles_or_agent(x0, y0, x1, y1, obs_matrix, visibility_record) -> bool:
         """ 
         判断某个点是否可见，障碍物后不可见
+        obs_matrix是obstacles与agents融合后的障碍物矩阵
         """
-        gh: GridHolder = grid_holder
+        if (x1,y1) in visibility_record:
+            if visibility_record[(x1,y1)] == 1: # 已知可见
+                return True
+            elif visibility_record[(x1,y1)] == 0: #已知不可见
+                return False
+            else:
+                raise ValueError('visibility record error')
+            
+        _x0 = x0
+        _y0 = y0
+        obs_matrix[x0][y0] = 0
 
         dx = abs(x1 - x0)
         dy = abs(y1 - y0)
         sx = 1 if x0 < x1 else -1
         sy = 1 if y0 < y1 else -1
         err = dx - dy
-
-        _type = ""
-        if x1 - x0 == 0 or y1 - y0 == 0:
-            _type = "line"
-        else:
-            if x1 - x0 > 0 and y1 - y0 > 0:
-                _type = "up-right"
-            elif x1 - x0 > 0 and y1 - y0 < 0:
-                _type = "down-right"
-            elif x1 - x0 < 0 and y1 - y0 > 0:
-                _type = "up-left"
-            elif x1 - x0 < 0 and y1 - y0 < 0 :
-                _type = "down-left"
-            else:
-                raise ValueError("unknown direction")
-            
+        
         points = []
-
         while True:
             points.append((x0, y0))
             if x0 == x1 and y0 == y1:
@@ -497,25 +510,170 @@ class AnimationMonitor(Wrapper):
                 y0 += sy
 
         points.pop(0) # 排除代理当前位置这个点
+        points.pop() #排除最终目标点
 
+        def check_for_target_point(x0,y0, x1,y1, obs_matrix, visibility_record):
+            """ 判断是否有障碍，且需判断是否可见 """
+            """ 如果是line则只需判断 这条路径上是否有障碍 """
+            if x1 - x0 == 0 or y1 - y0 == 0: #"line"
+                """ 如果位于一条直线，此时已经检查过这条路径上的可见性，因此该点可见 """
+                pass
+            """ 如果位于斜方向 那么需要判断其相邻两个是否可见，且不为障碍 """
+            if x1 - x0 < 0 and y1 - y0 > 0 : # "up-right"
+                """ 相邻两点同时为障碍时，无论他们是否可见，该点都不可见 """
+                if obs_matrix[x1][y1-1] != 0 and obs_matrix[x1+1][y1] != 0: #不能 同时为障碍
+                    visibility_record[(x1,y1)] = 0
+                    return False
+                visibility_point0 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1+1 , y1, obs_matrix, visibility_record)
+                visibility_point1 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1 , y1-1, obs_matrix, visibility_record)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true 即不返回False即可 最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1+1][y1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1][y1-1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record[(x1,y1)] = 0
+                    return False
+            elif x1 - x0 > 0 and y1 - y0 > 0: #"down-right"
+                """ 相邻两点同时为障碍时，无论他们是否可见，该点都不可见 """
+                if obs_matrix[x1][y1-1] != 0 and obs_matrix[x1-1][y1] != 0: #不能 同时为障碍
+                    visibility_record[(x1,y1)] = 0
+                    return False
+                visibility_point0 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1 , y1-1, obs_matrix, visibility_record)
+                visibility_point1 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1-1 , y1, obs_matrix, visibility_record)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true 即不返回False即可 最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1][y1-1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1-1][y1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record[(x1,y1)] = 0
+                    return False
+            elif x1 - x0 < 0 and y1 - y0 < 0: # "up-left"
+                """ 相邻两点同时为障碍时，无论他们是否可见，该点都不可见 """
+                if obs_matrix[x1][y1+1] != 0 and obs_matrix[x1+1][y1] != 0: #不能 同时为障碍
+                    visibility_record[(x1,y1)] = 0
+                    return False
+                visibility_point0 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1 , y1+1, obs_matrix, visibility_record)
+                visibility_point1 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1+1 , y1, obs_matrix, visibility_record)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true 即不返回False即可 最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1][y1+1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1+1][y1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record[(x1,y1)] = 0
+                    return False
+            elif x1 - x0 > 0 and y1 - y0 < 0 : #"down-left":
+                """ 相邻两点同时为障碍时，无论他们是否可见，该点都不可见 """
+                if obs_matrix[x1][y1+1] != 0 and obs_matrix[x1-1][y1] != 0: #不能 同时为障碍
+                    visibility_record[(x1,y1)] = 0
+                    return False
+                visibility_point0 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1 , y1+1, obs_matrix, visibility_record)
+                visibility_point1 = AnimationMonitor.check_is_before_obstacles_or_agent(x0, y0, x1-1 , y1, obs_matrix, visibility_record)
+                if visibility_point0 and visibility_point1:
+                    """ 如果两个点都可见，且少于一个障碍，则目标点可见 
+                        此处之前以排除 两个都是障碍的情况
+                        因此此处应该返回 true 即不返回False即可 最终统一返回true
+                    """
+                    pass
+                elif visibility_point0 and not visibility_point1 :
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1][y1+1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif visibility_point1 and not visibility_point0:
+                    """ 如果只有一个点可见，那么该点不能是障碍 """
+                    if obs_matrix[x1-1][y1] != 0:
+                        visibility_record[(x1,y1)] = 0
+                        return False
+                elif not visibility_point0 and not visibility_point1:
+                    """ 相邻两个点都不可见 ，因此该点不可见 """
+                    visibility_record[(x1,y1)] = 0
+                    return False
+                              
+            visibility_record[(x1,y1)] = 1
+            return True
+        
+        flag = True
         for x,y in points:
-            if gh.obstacles[x][y] != free and (x1, y1) != (x, y):
-                return False
-            else:
-                if _type == "up-right":
-                    if gh.obstacles[x-1][y] != free and gh.obstacles[x][y-1] != free:
-                        return False
-                elif _type == "down-right":
-                    if gh.obstacles[x-1][y] != free and gh.obstacles[x][y+1] != free:
-                        return False
-                elif _type == "up-left":
-                    if gh.obstacles[x+1][y] != free and gh.obstacles[x][y-1] != free:
-                        return False
-                elif _type == "down-left":
-                    if gh.obstacles[x+1][y] != free and gh.obstacles[x][y+1] != free:
-                        return False
-        return True
+            """ 处理起点到终点之间的路径点的可视性 """
+            if obs_matrix[x][y] != 0:  #说明 两点间的路径上有障碍
+                flag = False
+                break
+            if (x,y) in visibility_record:
+                if visibility_record[(x,y)] == 1: # 已知可见
+                    continue
+                elif visibility_record[(x,y)] == 0: #已知不可见
+                    flag = False
+                    break
+                else:
+                    raise ValueError('visibility record error')
+            else: #可见性仍未知
+                if AnimationMonitor.check_is_before_obstacles_or_agent(_x0, _y0, x , y, obs_matrix, visibility_record):
+                    visibility_record[(x,y)] = 1
+                    continue
+                else:
+                    visibility_record[(x,y)] = 0
+                    flag = False
+                    break
+   
+        if flag == True:
+            if check_for_target_point(_x0, _y0, x1,y1, obs_matrix, visibility_record):
+                return True
+        return False
 
+
+    @staticmethod
+    def check_in_real_view(direction0,x0,y0, x1,y1, r, obs_matrix, visibility_record):
+        """ 检查某个点是否可见 
+            在视角范围内
+            且 不被遮挡
+        """
+        if not AnimationMonitor.check_in_new_radius(direction0,x0,y0, x1,y1, r):
+            return False
+        
+        if AnimationMonitor.check_is_before_obstacles_or_agent(x0,y0,x1,y1, obs_matrix, visibility_record):
+            return True
+        else:
+            return False
+        
 
     def create_sector_field_of_view(self, grid_holder, animation_config):
         """
@@ -675,12 +833,11 @@ class AnimationMonitor(Wrapper):
                     ego_agent_state = gh.history[egocentric_idx][t_step]
                     ego_x, ego_y = ego_agent_state.get_xy()
                     ego_direction = ego_agent_state.get_direction()
-                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
-                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
-                            opacity.append('1.0')
-                        else:
-                            opacity.append(str(cfg.shaded_opacity))
+                    positions = self.get_positions_by_step(t_step, gh)
+                    obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                    visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                        opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
 
@@ -720,12 +877,11 @@ class AnimationMonitor(Wrapper):
                     ego_agent_state = gh.history[egocentric_idx][t_step]
                     ego_x, ego_y = ego_agent_state.get_xy()
                     ego_direction = ego_agent_state.get_direction()
-                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
-                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
-                            opacity.append('1.0')
-                        else:
-                            opacity.append(str(cfg.shaded_opacity))
+                    positions = self.get_positions_by_step(t_step, gh)
+                    obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                    visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                        opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
 
@@ -865,8 +1021,10 @@ class AnimationMonitor(Wrapper):
                         initial_directions = [agent_states[0].get_direction() for agent_states in gh.history]
                         ego_x, ego_y = initial_positions[animation_config.egocentric_idx]
                         ego_direction = initial_directions[animation_config.egocentric_idx]
-                        # if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                        if not self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
+                        positions = self.get_positions_by_step(0, gh)
+                        obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                        visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                        if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
                             obs_settings.update(opacity=cfg.shaded_opacity)
 
                     result.append(Rectangle(**obs_settings))
@@ -892,13 +1050,14 @@ class AnimationMonitor(Wrapper):
                     continue
                 opacity = []
                 seen = set()
-                for step_idx, agent_state in enumerate(gh.history[animation_config.egocentric_idx]):
+                for t_step, agent_state in enumerate(gh.history[animation_config.egocentric_idx]):
                     ego_x, ego_y = agent_state.get_xy()
                     ego_direction = agent_state.get_direction()
-                    # if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
-                    if self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius):
-                        if self.check_is_before_obstacles(ego_x,ego_y,x,y ,gh, self.grid_config.FREE):
-                            seen.add((x, y))
+                    positions = self.get_positions_by_step(t_step, gh)
+                    obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                    visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                        seen.add((x, y))
                     if (x, y) in seen:
                         opacity.append(str(1.0))
                     else:
@@ -935,8 +1094,10 @@ class AnimationMonitor(Wrapper):
             if ego_idx is not None:
                 ego_x, ego_y = initial_positions[ego_idx]
                 ego_direction = initial_directions[ego_idx]
-                # if not self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius) and cfg.egocentric_shaded:
-                if not self.check_in_new_radius(ego_direction,ego_x, ego_y,x,y, self.grid_config.obs_radius) and cfg.egocentric_shaded:
+                positions = self.get_positions_by_step(0, gh)
+                obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record) and cfg.egocentric_shaded:
                     circle_settings.update(opacity=cfg.shaded_opacity)
                 if ego_idx == idx:
                     circle_settings.update(fill=self.svg_settings.ego_color)

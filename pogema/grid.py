@@ -219,8 +219,6 @@ class Grid:
                 y0 += sy
         points.pop(0) # 排除代理当前位置这个点
         points.pop() #排除最终目标点
-        def check_for_target_adjacent_point():
-            pass
 
         def check_for_target_point(x0,y0, x1,y1, obs_matrix,visibility_record_matrix):
             """ 判断是否有障碍，且需判断是否可见 """
