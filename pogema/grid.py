@@ -428,7 +428,9 @@ class Grid:
             for j in range(len(matrix0[i])):
                 x1 = j
                 y1 = n - i -1
-                """ 左上角为坐标原点，进行坐标转换, 转换结果为左下角为0,0 """
+                """ 左上角为坐标原点，进行坐标转换, 转换结果为左下角为0,0 
+                    x向右为正，y向上为正
+                """
                 angle_deg = calculate_angle(x0,y0,x1,y1)
                 if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1) :
                     matrix0[i][j] = -1 # 将不可见区域改为-1
