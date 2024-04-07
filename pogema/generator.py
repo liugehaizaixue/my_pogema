@@ -102,7 +102,7 @@ def placing(order, components, grid, start_id, num_agents, grid_config ):
             positions_xy.append((x, y))
 
     n = len(positions_xy)
-    positions_direction = [random.choice(grid_config.DIRECTIONS) for _ in range(n)]
+    positions_direction = np.random.default_rng(grid_config.seed).choice(grid_config.DIRECTIONS, size=n).tolist()
     fininshes_direction = [random.choice(grid_config.DIRECTIONS) for _ in range(n)]
 
     return positions_xy, finishes_xy, positions_direction, fininshes_direction
