@@ -104,8 +104,8 @@ class Pogema(PogemaBase):
             self.observation_space = gymnasium.spaces.Box(-1.0, 1.0, shape=(3, full_size, full_size))
         elif self.grid_config.observation_type == 'POMAPF':
             self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(
-                obstacles=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
-                agents=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+                obstacles=gymnasium.spaces.Box(-1.0, 1.0, shape=(full_size, full_size)),
+                agents=gymnasium.spaces.Box(-1.0, 1.0, shape=(full_size, full_size)),
                 xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
                 target_xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
                 direction = gymnasium.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
