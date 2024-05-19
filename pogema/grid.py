@@ -495,6 +495,8 @@ class Grid:
             other_positions = np.where(sector_positions == 1)
             other_positions_list = list(zip(other_positions[0]-r + x, other_positions[1]-r + y))
             other_agents_id_list = [i for i, x in enumerate(self.positions_xy) if x in other_positions_list]
+            # 过滤不活跃的agent
+            other_agents_id_list = [idx for idx in other_agents_id_list if self.is_active[idx]]
             other_agents_directions_list = [self.positions_direction[idx] for idx in other_agents_id_list]
             vector_mapping = {
                 (1,0): 1,
