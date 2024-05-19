@@ -491,7 +491,33 @@ class Grid:
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
         sector_positions = self.get_real_views(deepcopy(rect_positions), deepcopy(rect_obstacles), direction)
-        return sector_positions.astype(np.float32)
+        if self.config.display_directions:
+            other_positions = np.where(sector_positions == 1)
+            other_positions_list = list(zip(other_positions[0]-r + x, other_positions[1]-r + y))
+            other_agents_id_list = [i for i, x in enumerate(self.positions_xy) if x in other_positions_list]
+            other_agents_directions_list = [self.positions_direction[idx] for idx in other_agents_id_list]
+            vector_mapping = {
+                (1,0): 1,
+                (0,-1): 2,
+                (-1,0): 3,
+                (0,1): 4
+            }
+
+            for k in range(len(other_agents_directions_list)):
+                vector = other_agents_directions_list[k]
+                direction_number = vector_mapping.get(tuple(vector), 0)  # 如果找不到对应的数字，返回默认值0
+                if direction_number != 0:
+                    # 将对应的数字更新到 sector_positions 中
+                    i , j = other_positions_list[k][0] - x + r , other_positions_list[k][1] - y + r
+                    if (i , j) in zip(*other_positions):
+                        sector_positions[i, j] = direction_number
+                    else:
+                        raise ValueError("Invalid position: {}".format(other_positions_list[k]))
+                else:
+                    raise ValueError("Invalid vector: {}".format(vector))
+            pass
+        else:
+            return sector_positions.astype(np.float32)
 
     def get_positions(self, agent_id):
         x, y = self.positions_xy[agent_id]

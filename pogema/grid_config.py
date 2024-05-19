@@ -20,6 +20,7 @@ class GridConfig(CommonSettings, ):
     persistent: bool = False
     observation_type: Literal['POMAPF', 'MAPF', 'default'] = 'default'
     map: Union[list, str] = None
+    display_directions: bool = False
 
     map_name: str = None
 
