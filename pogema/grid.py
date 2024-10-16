@@ -371,71 +371,72 @@ class Grid:
         return False
 
 
+    @staticmethod
+    def calculate_angle(x0, y0, x1, y1):
+        # 计算点与基准方向的水平距离和垂直距离
+        delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
+        delta_y = y1 - y0
+        # 使用反三角函数计算角度（以弧度为单位）
+        angle_rad = math.atan2(delta_y, delta_x)
+        # 将弧度转换为度数
+        angle_deg = math.degrees(angle_rad)
+        # 将角度限制在 0 到 360 度之间（可选）
+        angle_deg = angle_deg % 360
+        return angle_deg
+
+    @staticmethod
+    def check_in_sector_radius(x0, y0, x1, y1, r):
+        """
+        Checks if the point is in the radius. 用直线距离来判断,超出r的不可见
+        :param x1: coordinate x0  原点
+        :param y1: coordinate y0  原点
+        :param x2: coordinate x1  目标点
+        :param y2: coordinate y1  目标点
+        :param r: radius
+        :return:
+        """
+        distance = math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
+        return distance <= r  
+
+    @staticmethod
+    def check_in_angle_range(angle_deg, direction0):
+        """ 判断是否位于可视角度内 """
+        direction_mapping = {
+            (45, 135): [0, 1],   # up
+            (135, 225): [-1, 0], # left
+            (225, 315): [0, -1], # down
+            (315, 360): [1, 0],  # right
+            (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
+        }
+        flag = False
+        for angle_range, direction in direction_mapping.items():
+            if angle_range[0] <= angle_deg <= angle_range[1]:
+                if direction == direction0:
+                    flag = True
+                else:
+                    continue
+        return flag
 
     @staticmethod
     def get_sector_range_from_rect(matrix0 ,direction):
         """ 
         从rect矩阵中裁取sector范围
         """
-        def calculate_angle(x0, y0, x1, y1):
-            # 计算点与基准方向的水平距离和垂直距离
-            delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
-            delta_y = y1 - y0
-            # 使用反三角函数计算角度（以弧度为单位）
-            angle_rad = math.atan2(delta_y, delta_x)
-            # 将弧度转换为度数
-            angle_deg = math.degrees(angle_rad)
-            # 将角度限制在 0 到 360 度之间（可选）
-            angle_deg = angle_deg % 360
-            return angle_deg
-        
-        def check_in_angle_range(angle_deg, direction0):
-            """ 判断是否位于可视角度内 """
-            direction_mapping = {
-                (45, 135): [0, 1],   # up
-                (135, 225): [-1, 0], # left
-                (225, 315): [0, -1], # down
-                (315, 360): [1, 0],  # right
-                (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
-            }
-            flag = False
-            for angle_range, direction in direction_mapping.items():
-                if angle_range[0] <= angle_deg <= angle_range[1]:
-                    if direction == direction0:
-                        flag = True
-                    else:
-                        continue
-            return flag
-                
-        def check_in_sector_radius(x0, y0, x1, y1, r):
-            """
-            Checks if the point is in the radius. 用直线距离来判断,超出r的不可见
-            :param x1: coordinate x0  原点
-            :param y1: coordinate y0  原点
-            :param x2: coordinate x1  目标点
-            :param y2: coordinate y1  目标点
-            :param r: radius
-            :return:
-            """
-            distance = math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
-            return distance <= r    
-
-
         n = len(matrix0)
-        x0 = y0 = int(((1+n) / 2) -1)
+        x0 = y0 =  (n - 1) // 2
         for i in range(n):
             # 遍历列
-            for j in range(len(matrix0[i])):
+            for j in range(n):
                 x1 = j
                 y1 = n - i -1
                 """ 左上角为坐标原点，进行坐标转换, 转换结果为左下角为0,0 
                     x向右为正，y向上为正
                 """
-                angle_deg = calculate_angle(x0,y0,x1,y1)
-                if not check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1) :
+                angle_deg = Grid.calculate_angle(x0,y0,x1,y1)
+                if not Grid.check_in_angle_range(angle_deg,direction) and not (x0 == x1 and y0 == y1) :
                     matrix0[i][j] = -1 # 将不可见区域改为-1
                     continue
-                if not check_in_sector_radius(x0,x0,x1,y1, r = x0):
+                if not Grid.check_in_sector_radius(x0,x0,x1,y1, r = x0):
                     matrix0[i][j] = -1 # 将不可见区域改为-1
                     continue
         return matrix0
@@ -451,7 +452,7 @@ class Grid:
         """
         obs_matrix = np.logical_or(matrix0 , matrix1).astype(int) # 通过布尔运算，产生obstacles+position组成的障碍图，根据该图判断 障碍物后的点是否可见
         obs_matrix_sector = Grid.get_sector_range_from_rect(obs_matrix, direction)
-        matrix0_sector = Grid.get_sector_range_from_rect(matrix0, direction)
+        matrix0_sector = Grid.get_sector_range_from_rect(deepcopy(matrix0), direction)
         visibility_record_matrix  = [[-1 if element != -1 else 0 for element in row] for row in obs_matrix_sector]  # 此表仅记录某元素是否可见，-1尚未判断，1确定可见，0不可见
         n = len(matrix0_sector)
         x0 = y0 = int(((1+n) / 2) -1)
@@ -481,7 +482,7 @@ class Grid:
         r = self.config.obs_radius
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
-        sector_obstacles = self.get_real_views(deepcopy(rect_obstacles), deepcopy(rect_positions), direction)
+        sector_obstacles = self.get_real_views(rect_obstacles, rect_positions, direction)
         return sector_obstacles.astype(np.float32)
 
     def new_get_positions(self, agent_id):
@@ -490,7 +491,7 @@ class Grid:
         r = self.config.obs_radius
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
-        sector_positions = self.get_real_views(deepcopy(rect_positions), deepcopy(rect_obstacles), direction)
+        sector_positions = self.get_real_views(rect_positions, rect_obstacles, direction)
         if self.config.display_directions:
             other_positions = np.where(sector_positions == 1)
             other_positions_list = list(zip(other_positions[0]-r + x, other_positions[1]-r + y))
@@ -517,7 +518,7 @@ class Grid:
                         raise ValueError("Invalid position: {}".format(other_positions_list[k]))
                 else:
                     raise ValueError("Invalid vector: {}".format(vector))
-            pass
+            return sector_positions.astype(np.float32)
         else:
             return sector_positions.astype(np.float32)
 
