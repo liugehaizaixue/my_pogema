@@ -2,7 +2,7 @@ from gymnasium import Wrapper
 
 
 class AbstractMetric(Wrapper):
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished,  _conflict_nums):
         raise NotImplementedError
 
     def __init__(self, env):
@@ -13,7 +13,12 @@ class AbstractMetric(Wrapper):
         obs, reward, terminated, truncated, infos = self.env.step(action)
         finished = all(truncated) or all(terminated)
 
-        metric = self._compute_stats(self._current_step, self.was_on_goal, finished)
+
+        current_conflict_nums = [0 for _ in range(self.get_num_agents())]
+        for agent_idx in range(self.get_num_agents()):
+            current_conflict_nums[agent_idx] = infos[agent_idx]['current_conflict_nums']
+        metric = self._compute_stats(self._current_step, self.was_on_goal, finished , current_conflict_nums)
+
         self._current_step += 1
         if finished:
             self._current_step = 0
@@ -32,7 +37,7 @@ class LifeLongAverageThroughputMetric(AbstractMetric):
         super().__init__(env)
         self._solved_instances = 0
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         for agent_idx, on_goal in enumerate(is_on_goal):
             if on_goal:
                 self._solved_instances += 1
@@ -49,7 +54,7 @@ class LifeLongAttritionMetric(AbstractMetric):
         self._attrition_steps = 0
         self._on_goal_steps = 0
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         for agent_idx, on_goal in enumerate(is_on_goal):
             if not on_goal:
                 self._attrition_steps += 1
@@ -64,21 +69,21 @@ class LifeLongAttritionMetric(AbstractMetric):
 
 class NonDisappearCSRMetric(AbstractMetric):
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         if finished:
             return {'CSR': float(all(is_on_goal))}
 
 
 class NonDisappearISRMetric(AbstractMetric):
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         if finished:
             return {'ISR': float(sum(is_on_goal)) / self.get_num_agents()}
 
 
 class NonDisappearEpLengthMetric(AbstractMetric):
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         if finished:
             return {'ep_length': step}
 
@@ -88,7 +93,7 @@ class EpLengthMetric(AbstractMetric):
         super().__init__(env)
         self._solve_time = [None for _ in range(self.get_num_agents())]
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         for idx, on_goal in enumerate(is_on_goal):
             if self._solve_time[idx] is None:
                 if on_goal or finished:
@@ -105,7 +110,7 @@ class CSRMetric(AbstractMetric):
         super().__init__(env)
         self._solved_instances = 0
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         self._solved_instances += sum(is_on_goal)
         if finished:
             results = {'CSR': float(self._solved_instances == self.get_num_agents())}
@@ -118,9 +123,23 @@ class ISRMetric(AbstractMetric):
         super().__init__(env)
         self._solved_instances = 0
 
-    def _compute_stats(self, step, is_on_goal, finished):
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
         self._solved_instances += sum(is_on_goal)
         if finished:
             results = {'ISR': self._solved_instances / self.get_num_agents()}
             self._solved_instances = 0
+            return results
+
+
+class ConflictNumsMetric(AbstractMetric):
+    def __init__(self, env):
+        super().__init__(env)
+        self.total_conflict_nums = [0 for _ in range(self.get_num_agents())]
+
+    def _compute_stats(self, step, is_on_goal, finished, _conflict_nums):
+        self.total_conflict_nums = list(map(lambda x, y: x + y, self.total_conflict_nums, _conflict_nums))
+        _solved_instances = sum(self.total_conflict_nums)
+        if finished:
+            results = {'conflict_nums': _solved_instances / self.get_num_agents()}
+            self.total_conflict_nums = [0 for _ in range(self.get_num_agents())]
             return results

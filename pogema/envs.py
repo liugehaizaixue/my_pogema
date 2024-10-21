@@ -7,7 +7,7 @@ from gymnasium.error import ResetNeeded
 from pogema.grid import Grid, GridLifeLong
 from pogema.grid_config import GridConfig
 from pogema.wrappers.metrics import LifeLongAverageThroughputMetric, NonDisappearEpLengthMetric, \
-    NonDisappearCSRMetric, NonDisappearISRMetric, EpLengthMetric, ISRMetric, CSRMetric
+    NonDisappearCSRMetric, NonDisappearISRMetric, EpLengthMetric, ISRMetric, CSRMetric, ConflictNumsMetric
 from pogema.wrappers.multi_time_limit import MultiTimeLimit
 from pogema.generator import generate_new_target
 from pogema.wrappers.persistence import PersistentWrapper
@@ -129,6 +129,9 @@ class Pogema(PogemaBase):
 
         terminated = []
 
+        if self.grid.config.collision_system == 'priority':
+            previous_obs = self._obs()
+
         self.move_agents(action)
         self.update_was_on_goal()
 
@@ -149,8 +152,31 @@ class Pogema(PogemaBase):
         infos = self._get_infos()
 
         observations = self._obs()
+
+        if self.grid.config.collision_system == 'priority':
+            current_conflict_nums = self.calculate_conflict_nums(previous_obs, observations, action)
+            for agent_idx in range(self.grid_config.num_agents):
+                infos[agent_idx]["current_conflict_nums"] = current_conflict_nums[agent_idx]
+
         truncated = [False] * self.grid_config.num_agents
         return observations, rewards, terminated, truncated, infos
+
+    def calculate_conflict_nums(self, pre_obs , current_obs , action):
+        """
+        Calculates the number of conflicts between agents.
+        :param pre_obs:
+        :param current_obs:
+        :param actions:
+        :return: current_conflict_nums
+        """
+        current_conflict_nums = [0 for _ in range(self.grid_config.num_agents)]
+        for agent_idx in range(self.grid_config.num_agents):
+            if not self.grid.on_goal(agent_idx) and action[agent_idx] == 1 :  # FORWARD
+                # agent 并未到达目标点，且动作是前进 ，即正常移动的智能体才需要计算冲突
+                if pre_obs[agent_idx]['xy'] == current_obs[agent_idx]['xy']:
+                    # 当前智能体位置与上一次位置相同，即发生冲突
+                    current_conflict_nums[agent_idx] = 1
+        return current_conflict_nums
 
     def _initialize_grid(self):
         self.grid: Grid = Grid(grid_config=self.grid_config)
@@ -398,6 +424,7 @@ def _make_pogema(grid_config):
             env = ISRMetric(env)
             env = CSRMetric(env)
             env = EpLengthMetric(env)
+            env = ConflictNumsMetric(env)
         else:
             raise KeyError(f'Unknown on_target option: {grid_config.on_target}')
 
