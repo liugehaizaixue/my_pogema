@@ -391,7 +391,7 @@ class Grid:
         dist = np.sqrt((x_indices - cx)**2 + (y_indices - cy)**2)
         
         # 计算每个点相对于中心点的角度 (使用 atan2 可以处理全角度)
-        theta = np.arctan2(y_indices - cy, x_indices - cx)
+        theta = np.arctan2(y_indices - cy, x_indices - cx) #  atan2(0, 0) 就是 0 , 矩阵中心的角度为0
         
         # 根据方向创建布尔掩码
         if direction == [1, 0]:
@@ -404,7 +404,10 @@ class Grid:
             mask = (dist <= r) & (-np.pi/4 <= theta) & (theta <= np.pi/4)
 
         # 将不在扇形区域的地方设置为 -1
-        matrix[~mask] = -1
+        original_center_value = matrix[cx, cy]  # 保存中心点的原始值
+        matrix[~mask] = -1  # 将不在扇形区域的地方设置为 -1
+        matrix[cx, cy] = original_center_value  # 还原中心点的值
+
         
         return matrix
 
