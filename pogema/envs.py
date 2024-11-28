@@ -341,6 +341,8 @@ class PogemaLifeLong(Pogema):
     def step(self, action: list):
         assert len(action) == self.grid_config.num_agents
         rewards = []
+        if self.grid.config.collision_system == 'priority':
+            previous_obs = self._obs()
 
         infos = [dict() for _ in range(self.grid_config.num_agents)]
 
@@ -363,11 +365,16 @@ class PogemaLifeLong(Pogema):
         for agent_idx in range(self.grid_config.num_agents):
             infos[agent_idx]['is_active'] = self.grid.is_active[agent_idx]
 
-        obs = self._obs()
+        observations = self._obs()
+
+        if self.grid.config.collision_system == 'priority':
+            current_conflict_nums = self.calculate_conflict_nums(previous_obs, observations, action)
+            for agent_idx in range(self.grid_config.num_agents):
+                infos[agent_idx]["current_conflict_nums"] = current_conflict_nums[agent_idx]
 
         terminated = [False] * self.grid_config.num_agents
         truncated = [False] * self.grid_config.num_agents
-        return obs, rewards, terminated, truncated, infos
+        return observations, rewards, terminated, truncated, infos
 
 
 class PogemaCoopFinish(Pogema):
@@ -416,6 +423,7 @@ def _make_pogema(grid_config):
         # adding metrics wrappers
         if grid_config.on_target == 'restart':
             env = LifeLongAverageThroughputMetric(env)
+            env = ConflictNumsMetric(env)
         elif grid_config.on_target == 'nothing':
             env = NonDisappearISRMetric(env)
             env = NonDisappearCSRMetric(env)
