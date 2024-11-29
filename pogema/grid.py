@@ -372,47 +372,53 @@ class Grid:
 
 
     @staticmethod
-    def get_sector_range_from_rect_optimized(matrix, direction):
-        # direction_mapping = {
-        #     (45, 135): [0, 1],   # up
-        #     (135, 225): [-1, 0], # left
-        #     (225, 315): [0, -1], # down
-        #     (315, 360): [1, 0],  # right
-        #     (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
-        # }
+    def get_sector_range_from_rect_optimized(matrix, direction, angle_span=90):
+        if angle_span not in [90, 180, 270, 360]:
+            raise ValueError("angle_span must be one of 90, 180, 270, or 360 degrees")
+
         n, m = matrix.shape
-        cx = n//2 
-        cy = n//2
+        cx, cy = n // 2, m // 2
         r = cx
+
         # 生成坐标网格
         y_indices, x_indices = np.meshgrid(np.arange(m), np.arange(n))
 
         # 计算每个点到中心点的距离
         dist = np.sqrt((x_indices - cx)**2 + (y_indices - cy)**2)
-        
-        # 计算每个点相对于中心点的角度 (使用 atan2 可以处理全角度)
-        theta = np.arctan2(y_indices - cy, x_indices - cx) #  atan2(0, 0) 就是 0 , 矩阵中心的角度为0
-        
-        # 根据方向创建布尔掩码
-        if direction == [1, 0]:
-            mask = (dist <= r) & (np.pi/4 <= theta) & (theta <= 3*np.pi/4)
-        elif direction == [-1, 0]:
-            mask = (dist <= r) & (-3*np.pi/4 <= theta) & (theta <= -np.pi/4)
-        elif direction == [0, 1]:
-            mask = (dist <= r) & ((theta >= 3*np.pi/4) | (theta <= -3*np.pi/4))
-        elif direction == [0, -1]:
-            mask = (dist <= r) & (-np.pi/4 <= theta) & (theta <= np.pi/4)
+
+        # 计算每个点相对于中心点的角度
+        theta = np.degrees(np.arctan2(y_indices - cy, x_indices - cx)) % 360
+
+        # 根据方向确定角度中心点
+        direction_angle = {
+            (1, 0): 0,    # ↓
+            (-1, 0): 180, # ↑
+            (0, 1): 90,   # →
+            (0, -1): 270  # ←
+        }
+        center_angle = direction_angle[tuple(direction)]
+
+        # 计算角度范围
+        start_angle = (center_angle - angle_span / 2) % 360
+        end_angle = (center_angle + angle_span / 2) % 360
+
+        # 创建布尔掩码
+        if angle_span == 360:
+            mask = (dist <= r)
+        elif start_angle < end_angle:
+            mask = (dist <= r) & (theta >= start_angle) & (theta <= end_angle)
+        else:  # 处理跨越0°的情况
+            mask = (dist <= r) & ((theta >= start_angle) | (theta <= end_angle))
 
         # 将不在扇形区域的地方设置为 -1
         original_center_value = matrix[cx, cy]  # 保存中心点的原始值
         matrix[~mask] = -1  # 将不在扇形区域的地方设置为 -1
         matrix[cx, cy] = original_center_value  # 还原中心点的值
 
-        
         return matrix
 
     @staticmethod
-    def get_real_views(matrix0 , matrix1, direction):
+    def get_real_views(matrix0 , matrix1, direction, angle_span=90):
         """
         matrix 代表obstacles与positions两个矩阵
         matrix0 为最终返回的矩阵
@@ -421,8 +427,8 @@ class Grid:
         sector范围外的:角度范围外，直线距离外，障碍物后
         """
         obs_matrix = np.logical_or(matrix0 , matrix1).astype(int) # 通过布尔运算，产生obstacles+position组成的障碍图，根据该图判断 障碍物后的点是否可见
-        obs_matrix_sector = Grid.get_sector_range_from_rect_optimized(obs_matrix, direction)
-        matrix0_sector = Grid.get_sector_range_from_rect_optimized(deepcopy(matrix0), direction)
+        obs_matrix_sector = Grid.get_sector_range_from_rect_optimized(obs_matrix, direction, angle_span=angle_span)
+        matrix0_sector = Grid.get_sector_range_from_rect_optimized(deepcopy(matrix0), direction, angle_span=angle_span)
         visibility_record_matrix  = [[-1 if element != -1 else 0 for element in row] for row in obs_matrix_sector]  # 此表仅记录某元素是否可见，-1尚未判断，1确定可见，0不可见
         n = len(matrix0_sector)
         x0 = y0 = int(((1+n) / 2) -1)
@@ -452,7 +458,7 @@ class Grid:
         r = self.config.obs_radius
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
-        sector_obstacles = self.get_real_views(rect_obstacles, rect_positions, direction)
+        sector_obstacles = self.get_real_views(rect_obstacles, rect_positions, direction, angle_span=self.config.angle_span)
         return sector_obstacles.astype(np.float32)
 
     def new_get_positions(self, agent_id):
@@ -461,7 +467,7 @@ class Grid:
         r = self.config.obs_radius
         rect_obstacles = self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
         rect_positions = self.positions[x - r:x + r + 1, y - r:y + r + 1]
-        sector_positions = self.get_real_views(rect_positions, rect_obstacles, direction)
+        sector_positions = self.get_real_views(rect_positions, rect_obstacles, direction, angle_span=self.config.angle_span)
         if self.config.display_directions:
             other_positions = np.where(sector_positions == 1)
             other_positions_list = list(zip(other_positions[0]-r + x, other_positions[1]-r + y))

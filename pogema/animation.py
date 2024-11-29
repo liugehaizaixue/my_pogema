@@ -414,45 +414,57 @@ class AnimationMonitor(Wrapper):
         return np.logical_or(positions, obstacles).astype(int)
 
     @staticmethod
-    def check_in_new_radius(direction0,x0,y0, x1,y1, r):
-        def check_in_angle_range(direction0,x0,y0, x1,y1):
+    def check_in_new_radius(direction0,x0,y0, x1,y1, r, angle_span=90):
+        def check_in_angle_range(direction0, x0, y0, x1, y1, angle_span):
             """
             判断某个点是否位于可视的角度范围 
             注意 坐标系原点在左上角，且竖着的是x,横着的是y， 即越靠上的点x越小
             因此先给x0,x1取负号， 再让y=x,x=y进行坐标系转换
+            angle_span: 可视角度范围 (90, 180, 270, 360)
             """
-            x0 = - x0
-            x1 = - x1
-            x0 , y0 = y0, x0
-            x1 , y1 = y1, x1
-            def calculate_angle(x0, y0, x1, y1):
-                # 计算点与基准方向的水平距离和垂直距离
-                delta_x = x1 - x0  # 假设基准方向的起点是坐标系原点 (0, 0), 向右为基准方向
-                delta_y = y1 - y0
-                # 使用反三角函数计算角度（以弧度为单位）
-                angle_rad = math.atan2(delta_y, delta_x)
-                # 将弧度转换为度数
-                angle_deg = math.degrees(angle_rad)
-                # 将角度限制在 0 到 360 度之间（可选）
-                angle_deg = angle_deg % 360
-                return angle_deg
+            if angle_span == 360:
+                return True
+            if x0 == x1 and y0 == y1:
+                return True
+            # 转换坐标系到更常见的笛卡尔坐标系（可选步骤，根据实际需要）
+            x0 = -x0
+            x1 = -x1
+            x0, y0 = y0, x0
+            x1, y1 = y1, x1
             
-            angle_deg = calculate_angle(x0, y0, x1, y1)
-            direction_mapping = {
-                (45, 135): [0, 1],   # up
-                (135, 225): [-1, 0], # left
-                (225, 315): [0, -1], # down
-                (315, 360): [1, 0],  # right
-                (0, 45): [1, 0]      # right (360 degrees is equivalent to 0 degrees)
-            }          
-            flag = False
-            for angle_range, direction in direction_mapping.items():
-                if angle_range[0] <= angle_deg <= angle_range[1]:
-                    if direction == direction0:
-                        flag = True
-                    else:
-                        continue
-            return flag
+            # 方向向量
+            direction_vectors = {
+                'up': (0, 1),
+                'down': (0, -1),
+                'left': (-1, 0),
+                'right': (1, 0)
+            }
+            
+            # 观察方向向量
+            vx, vy = direction0
+            
+            # 目标点向量
+            dx, dy = x1 - x0, y1 - y0
+            
+            # 计算点积 (cosine of the angle)
+            dot_product = vx * dx + vy * dy
+            
+            # 计算欧几里得长度
+            norm_v = math.sqrt(vx**2 + vy**2)
+            norm_d = math.sqrt(dx**2 + dy**2)
+            
+            # 避免除以零
+            if norm_v == 0 or norm_d == 0:
+                return False
+            
+            # 计算两个向量之间的夹角的余弦值
+            cos_angle = dot_product / (norm_v * norm_d)
+            
+            # 计算夹角的度数
+            angle_deg = math.degrees(math.acos(cos_angle))
+            angle_deg = round(angle_deg, 2)
+            # 判断角度是否在允许的范围内
+            return angle_deg <= angle_span / 2
             
         def check_in_sector_radius(x0, y0, x1, y1, r):
             """
@@ -470,7 +482,7 @@ class AnimationMonitor(Wrapper):
         if x0 == x1 and y0 == y1:
             return True
 
-        return check_in_sector_radius(x0, y0, x1, y1, r) and check_in_angle_range(direction0,x0,y0, x1,y1)
+        return check_in_sector_radius(x0, y0, x1, y1, r) and check_in_angle_range(direction0,x0,y0, x1,y1, angle_span=angle_span)
 
     @staticmethod
     def check_is_before_obstacles_or_agent(x0, y0, x1, y1, obs_matrix, visibility_record) -> bool:
@@ -661,12 +673,12 @@ class AnimationMonitor(Wrapper):
 
 
     @staticmethod
-    def check_in_real_view(direction0,x0,y0, x1,y1, r, obs_matrix, visibility_record):
+    def check_in_real_view(direction0,x0,y0, x1,y1, r, obs_matrix, visibility_record, angle_span=90):
         """ 检查某个点是否可见 
             在视角范围内
             且 不被遮挡
         """
-        if not AnimationMonitor.check_in_new_radius(direction0,x0,y0, x1,y1, r):
+        if not AnimationMonitor.check_in_new_radius(direction0,x0,y0, x1,y1, r, angle_span=angle_span):
             return False
         
         if AnimationMonitor.check_is_before_obstacles_or_agent(x0,y0,x1,y1, obs_matrix, visibility_record):
@@ -693,16 +705,23 @@ class AnimationMonitor(Wrapper):
 
 
         direction = gh.history[ego_idx][0].get_direction()
-        if direction == [0,1]: #"UP"
-            visual_angle = (225,315)
-        elif direction == [0,-1]: #"DOWN"
-            visual_angle = (45,135)
-        elif direction == [-1,0]: #"LEFT"
-            visual_angle = (135,225)
-        else:                     #"RIGHT"
-            visual_angle = (-45,45)
 
-        d = self.create_sector_data(cx, -cy,dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是负
+        angle_span = self.grid_config.angle_span # 获取角度范围
+
+        if direction == [0,1]: #"UP"
+            center_angle = 270
+        elif direction == [0,-1]: #"DOWN"
+            center_angle = 90
+        elif direction == [-1,0]: #"LEFT"
+            center_angle = 180
+        else:                     #"RIGHT"
+            center_angle = 0
+
+        # 计算扇形的起始和结束角度
+        start_angle = (center_angle - angle_span / 2) % 360
+        end_angle = (center_angle + angle_span / 2) % 360
+
+        d = self.create_sector_data(cx, -cy,dr - cfg.r, start_angle, end_angle) #此处cy是负
         result = Sector(d=d, 
                         stroke=cfg.ego_color, stroke_width=cfg.stroke_width,
                         fill='none',
@@ -733,19 +752,52 @@ class AnimationMonitor(Wrapper):
 
         return result
 
-    def create_sector_data(self, cx,cy,r,start_angle,end_angle):
+    # def create_sector_data(self, cx,cy,r,start_angle,end_angle):
+    #     start_x = cx + r * math.cos(math.radians(start_angle))
+    #     start_y = cy + r * math.sin(math.radians(start_angle))
+    #     end_x = cx + r * math.cos(math.radians(end_angle))
+    #     end_y = cy + r * math.sin(math.radians(end_angle))
+
+    #     large_arc_flag = "0" if end_angle - start_angle <= 180 else "1"
+    #     sweep_flag = "1"  # Always draw the arc in positive angle direction
+
+    #     path_data = f"M {cx},{cy} " \
+    #                 f"L {start_x},{start_y} " \
+    #                 f"A {r},{r} 0 {large_arc_flag} {sweep_flag} {end_x},{end_y} " \
+    #                 f"Z"
+    #     return path_data
+
+    def create_sector_data(self, cx, cy, r, start_angle, end_angle):
+        # 当圆弧是360度时，使用两个180度的圆弧来创建一个完整的圆
+        if end_angle - start_angle >= 360 or start_angle == end_angle:
+            return self.create_complete_circle(cx, cy, r)
+        
         start_x = cx + r * math.cos(math.radians(start_angle))
         start_y = cy + r * math.sin(math.radians(start_angle))
         end_x = cx + r * math.cos(math.radians(end_angle))
         end_y = cy + r * math.sin(math.radians(end_angle))
 
-        large_arc_flag = "0" if end_angle - start_angle <= 180 else "1"
+        # 计算是否需要大圆弧标志
+        if (end_angle - start_angle) % 360 > 180:
+            large_arc_flag = "1"
+        else:
+            large_arc_flag = "0"
         sweep_flag = "1"  # Always draw the arc in positive angle direction
 
         path_data = f"M {cx},{cy} " \
                     f"L {start_x},{start_y} " \
                     f"A {r},{r} 0 {large_arc_flag} {sweep_flag} {end_x},{end_y} " \
                     f"Z"
+        return path_data
+
+    def create_complete_circle(self, cx, cy, r):
+        # 通过绘制两个180度的圆弧来构建一个完整的圆
+        path_data = (
+            f"M {cx},{cy - r} "  # 从顶点开始
+            f"A {r},{r} 0 1 1 {cx},{cy + r} "  # 绘制上半圆
+            f"A {r},{r} 0 1 1 {cx},{cy - r} "  # 绘制下半圆
+            f"Z"
+        )
         return path_data
 
     def animate_sector_field_of_view(self, view, agent_idx, grid_holder,start_angle=45,end_angle=135):
@@ -767,15 +819,22 @@ class AnimationMonitor(Wrapper):
             cy = -cfg.draw_start + -(gh.width - x - 1) * cfg.scale_size
 
             direction = state.get_direction()
+
+            angle_span = self.grid_config.angle_span # 获取角度范围
+
             if direction == [0,1]: #"UP"
-                visual_angle = (225,315)
+                center_angle = 270
             elif direction == [0,-1]: #"DOWN"
-                visual_angle = (45,135)
+                center_angle = 90
             elif direction == [-1,0]: #"LEFT"
-                visual_angle = (135,225)
+                center_angle = 180
             else:                     #"RIGHT"
-                visual_angle = (-45,45)
-            d = self.create_sector_data(cx, cy, dr - cfg.r, visual_angle[0], visual_angle[1]) #此处cy是正
+                center_angle = 0
+
+            # 计算扇形的起始和结束角度
+            start_angle = (center_angle - angle_span / 2) % 360
+            end_angle = (center_angle + angle_span / 2) % 360
+            d = self.create_sector_data(cx, cy, dr - cfg.r, start_angle, end_angle) #此处cy是正
             d_path.append(d)
 
         visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
@@ -836,7 +895,7 @@ class AnimationMonitor(Wrapper):
                     positions = self.get_positions_by_step(t_step, gh)
                     obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
                     visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record, angle_span=self.grid_config.angle_span):
                         opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
@@ -880,7 +939,7 @@ class AnimationMonitor(Wrapper):
                     positions = self.get_positions_by_step(t_step, gh)
                     obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
                     visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record, angle_span=self.grid_config.angle_span):
                         opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
@@ -1024,7 +1083,7 @@ class AnimationMonitor(Wrapper):
                         positions = self.get_positions_by_step(0, gh)
                         obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
                         visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                        if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                        if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record, angle_span=self.grid_config.angle_span):
                             obs_settings.update(opacity=cfg.shaded_opacity)
 
                     result.append(Rectangle(**obs_settings))
@@ -1056,7 +1115,7 @@ class AnimationMonitor(Wrapper):
                     positions = self.get_positions_by_step(t_step, gh)
                     obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
                     visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record, angle_span=self.grid_config.angle_span):
                         seen.add((x, y))
                     if (x, y) in seen:
                         opacity.append(str(1.0))
@@ -1097,7 +1156,7 @@ class AnimationMonitor(Wrapper):
                 positions = self.get_positions_by_step(0, gh)
                 obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
                 visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record) and cfg.egocentric_shaded:
+                if not self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record, angle_span=self.grid_config.angle_span) and cfg.egocentric_shaded:
                     circle_settings.update(opacity=cfg.shaded_opacity)
                 if ego_idx == idx:
                     circle_settings.update(fill=self.svg_settings.ego_color)

@@ -19,6 +19,7 @@ class GridConfig(CommonSettings, ):
     collision_system: Literal['block_both', 'priority', 'soft'] = 'priority'
     persistent: bool = False
     observation_type: Literal['POMAPF', 'MAPF', 'default'] = 'default'
+    angle_span: Literal[90, 180, 270, 360] = 90
     map: Union[list, str] = None
     display_directions: bool = False
 
