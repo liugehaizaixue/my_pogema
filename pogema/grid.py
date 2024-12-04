@@ -391,10 +391,10 @@ class Grid:
 
         # 根据方向确定角度中心点
         direction_angle = {
-            (1, 0): 0,    # ↓
-            (-1, 0): 180, # ↑
-            (0, 1): 90,   # →
-            (0, -1): 270  # ←
+            (1, 0): 90,    # →
+            (-1, 0): 270, # ←
+            (0, 1): 180,   # ↑
+            (0, -1): 0  # ↓
         }
         center_angle = direction_angle[tuple(direction)]
 
