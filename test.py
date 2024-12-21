@@ -71,7 +71,7 @@ grid = """
 """
 
 # Define new configuration with 8 randomly placed agents
-grid_config = GridConfig(seed=10, map=grid, num_agents=64,observation_type="POMAPF",max_episode_steps=512, obs_radius=6,map_name="test", display_directions=False)
+grid_config = GridConfig(seed=10, map=grid, num_agents=64,observation_type="POMAPF",max_episode_steps=51, obs_radius=5,map_name="test", display_directions=False)
 # Create custom Pogema environment
 env = pogema_v0(grid_config=grid_config)
 

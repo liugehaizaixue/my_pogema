@@ -317,12 +317,12 @@ class AnimationMonitor(Wrapper):
             drawing.add_element(obj)
 
         if anim_cfg.egocentric_idx is not None:
-            # field_of_view = self.create_field_of_view(grid_holder=gh, animation_config=anim_cfg)
-            field_of_view = self.create_sector_field_of_view(grid_holder=gh, animation_config=anim_cfg)
+            field_of_view = self.create_field_of_view(grid_holder=gh, animation_config=anim_cfg)
+            # field_of_view = self.create_sector_field_of_view(grid_holder=gh, animation_config=anim_cfg)
             if not anim_cfg.static:
                 self.animate_obstacles(obstacles=obstacles, grid_holder=gh, animation_config=anim_cfg)
-                # self.animate_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
-                self.animate_sector_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
+                self.animate_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
+                # self.animate_sector_field_of_view(field_of_view, anim_cfg.egocentric_idx, gh)
             drawing.add_element(field_of_view)
 
         return drawing
@@ -833,13 +833,17 @@ class AnimationMonitor(Wrapper):
                     ego_agent_state = gh.history[egocentric_idx][t_step]
                     ego_x, ego_y = ego_agent_state.get_xy()
                     ego_direction = ego_agent_state.get_direction()
-                    positions = self.get_positions_by_step(t_step, gh)
-                    obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
-                    visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
                         opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
+                    # positions = self.get_positions_by_step(t_step, gh)
+                    # obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                    # visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                    # if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    #     opacity.append('1.0')
+                    # else:
+                    #     opacity.append(str(cfg.shaded_opacity))
 
             visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
 
@@ -1053,15 +1057,19 @@ class AnimationMonitor(Wrapper):
                 for t_step, agent_state in enumerate(gh.history[animation_config.egocentric_idx]):
                     ego_x, ego_y = agent_state.get_xy()
                     ego_direction = agent_state.get_direction()
-                    positions = self.get_positions_by_step(t_step, gh)
-                    obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
-                    visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
-                    if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
-                        seen.add((x, y))
-                    if (x, y) in seen:
-                        opacity.append(str(1.0))
+                    if self.check_in_radius(x, y, ego_x, ego_y, self.grid_config.obs_radius):
+                        opacity.append('1.0')
                     else:
                         opacity.append(str(cfg.shaded_opacity))
+                    # positions = self.get_positions_by_step(t_step, gh)
+                    # obs_matirx = self.get_obstacles_and_agents_matrix(positions, gh.obstacles)
+                    # visibility_record = {(ego_x,ego_y):1} # 此表仅记录某元素是否可见，有值为 1确定可见，0不可见 ，无值则尚未确定
+                    # if self.check_in_real_view(ego_direction,ego_x, ego_y, x, y, self.grid_config.obs_radius, obs_matirx, visibility_record):
+                    #     seen.add((x, y))
+                    # if (x, y) in seen:
+                    #     opacity.append(str(1.0))
+                    # else:
+                    #     opacity.append(str(cfg.shaded_opacity))
 
                 obstacle = obstacles[obstacle_idx]
                 obstacle.add_animation(self.compressed_anim('opacity', opacity, cfg.time_scale))
